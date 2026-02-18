@@ -1,0 +1,13 @@
+services:
+  tg-chinese-search:
+    build: .
+    container_name: tg-chinese-search
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./certs:/app/certs
+    ports:
+      - "8443:8443"
+    restart: unless-stopped
+
