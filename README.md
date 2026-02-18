@@ -124,8 +124,21 @@ python -m app.main import --json "C:\path\to\result.json" --dry-run
 - `webhook_listen_port`
 - `default_search_limit`
 - `private_page_size`
+- `private_separator`
 
 敏感项会加密存储，展示时脱敏。
+
+分割线示例（运行中可改）：
+
+```text
+/admin_set private_separator ----
+```
+
+链接生成策略：
+
+- 优先使用导入消息自带 `link`
+- 其次使用 `@channel_username/message_id`
+- 最后尝试 `t.me/c/...` 形式链接
 
 ## 代理配置（Telegram API Only）
 

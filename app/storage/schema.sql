@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS channel_messages (
     chat_id INTEGER NOT NULL,
     message_id INTEGER NOT NULL,
     channel_username TEXT,
+    source_link TEXT,
     text TEXT NOT NULL,
     tokens TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
@@ -79,4 +80,3 @@ CREATE TRIGGER IF NOT EXISTS channel_messages_au AFTER UPDATE ON channel_message
     INSERT INTO channel_messages_fts(rowid, tokens)
     VALUES (new.id, new.tokens);
 END;
-

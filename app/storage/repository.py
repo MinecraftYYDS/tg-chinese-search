@@ -13,6 +13,7 @@ class SearchRow:
     chat_id: int
     message_id: int
     channel_username: str | None
+    source_link: str | None
     text: str
     timestamp: int
 
@@ -28,11 +29,12 @@ class MessageRepository:
             self.conn.execute(
                 """
                 INSERT INTO channel_messages (
-                    chat_id, message_id, channel_username, text, tokens,
+                    chat_id, message_id, channel_username, source_link, text, tokens,
                     timestamp, edited_timestamp, source, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(chat_id, message_id) DO UPDATE SET
                     channel_username=excluded.channel_username,
+                    source_link=COALESCE(excluded.source_link, channel_messages.source_link),
                     text=excluded.text,
                     tokens=excluded.tokens,
                     timestamp=excluded.timestamp,
@@ -44,6 +46,7 @@ class MessageRepository:
                     msg.chat_id,
                     msg.message_id,
                     msg.channel_username,
+                    msg.source_link,
                     msg.text,
                     token_text,
                     msg.timestamp,
@@ -96,7 +99,7 @@ class MessageRepository:
         if channel is not None and chat_id is None:
             return []
         sql = """
-            SELECT m.id, m.chat_id, m.message_id, m.channel_username, m.text, m.timestamp
+            SELECT m.id, m.chat_id, m.message_id, m.channel_username, m.source_link, m.text, m.timestamp
             FROM channel_messages_fts f
             JOIN channel_messages m ON m.id = f.rowid
             WHERE channel_messages_fts MATCH ?
@@ -114,6 +117,7 @@ class MessageRepository:
                 chat_id=int(row["chat_id"]),
                 message_id=int(row["message_id"]),
                 channel_username=row["channel_username"],
+                source_link=row["source_link"],
                 text=row["text"],
                 timestamp=int(row["timestamp"]),
             )
@@ -165,4 +169,3 @@ class MessageRepository:
     def get_all_messages_count(self) -> int:
         row = self.conn.execute("SELECT COUNT(1) AS c FROM channel_messages").fetchone()
         return int(row["c"])
-

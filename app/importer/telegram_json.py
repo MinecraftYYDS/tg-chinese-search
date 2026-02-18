@@ -17,6 +17,13 @@ class ImportStats:
     imported: int = 0
 
 
+def _to_bot_api_chat_id(raw_chat_id: int) -> int:
+    # Telegram Desktop export channel id is usually positive, while Bot API uses -100 prefix.
+    if raw_chat_id < 0:
+        return raw_chat_id
+    return int(f"-100{raw_chat_id}")
+
+
 def _normalize_import_message(message: dict[str, Any], chat_id: int) -> NormalizedMessage | None:
     if message.get("type") != "message":
         return None
@@ -35,6 +42,7 @@ def _normalize_import_message(message: dict[str, Any], chat_id: int) -> Normaliz
         edited_timestamp=int(edited_timestamp) if edited_timestamp else None,
         source="import",
         channel_username=None,
+        source_link=message.get("link") if isinstance(message.get("link"), str) else None,
     )
 
 
@@ -45,7 +53,7 @@ def import_telegram_export(
     dry_run: bool = False,
 ) -> ImportStats:
     data = json.loads(Path(json_path).read_text(encoding="utf-8"))
-    chat_id = int(data["id"])
+    chat_id = _to_bot_api_chat_id(int(data["id"]))
     channel_name = data.get("name", "")
     stats = ImportStats(total=len(data.get("messages", [])))
 
@@ -64,4 +72,3 @@ def import_telegram_export(
             repo.upsert_message(normalized, tokens)
         stats.imported += 1
     return stats
-

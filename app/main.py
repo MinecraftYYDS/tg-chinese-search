@@ -49,6 +49,7 @@ def _seed_dynamic_config(config_store: ConfigStore, settings: Settings) -> None:
         "webhook_listen_port": str(settings.webhook_listen_port),
         "default_search_limit": str(settings.default_search_limit),
         "private_page_size": str(settings.private_page_size),
+        "private_separator": settings.private_separator,
     }
     for key, value in defaults.items():
         if config_store.get(key) is None and value != "":
@@ -82,6 +83,9 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
     settings.private_page_size = int(
         _resolve_runtime_value(config_store, "private_page_size", str(settings.private_page_size))
     )
+    settings.private_separator = _resolve_runtime_value(
+        config_store, "private_separator", settings.private_separator
+    )
     settings.webhook_url = _resolve_runtime_value(config_store, "webhook_url", settings.webhook_url)
     settings.webhook_listen_host = _resolve_runtime_value(
         config_store, "webhook_listen_host", settings.webhook_listen_host
@@ -108,6 +112,7 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
         config_store=config_store,
         default_search_limit=settings.default_search_limit,
         private_page_size=settings.private_page_size,
+        private_separator=settings.private_separator,
         proxy_fail_open=settings.proxy_fail_open,
     )
     return runtime, settings

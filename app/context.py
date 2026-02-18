@@ -18,5 +18,5 @@ class RuntimeContext:
     config_store: ConfigStore
     default_search_limit: int
     private_page_size: int
+    private_separator: str
     proxy_fail_open: bool
-

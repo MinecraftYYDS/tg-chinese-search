@@ -13,6 +13,7 @@ class NormalizedMessage:
     edited_timestamp: int | None
     source: str
     channel_username: str | None
+    source_link: str | None
 
 
 def extract_text_field(value: Any) -> str:
@@ -84,5 +85,5 @@ def normalize_channel_message(raw: Any, source: str = "live") -> NormalizedMessa
         edited_timestamp=edited_timestamp,
         source=source,
         channel_username=username,
+        source_link=None,
     )
-

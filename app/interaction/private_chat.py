@@ -58,7 +58,7 @@ async def handle_private_search(update: Update, context: ContextTypes.DEFAULT_TY
 
     keywords = _keywords(parsed.query)
     chunks = [render_private_result(row, keywords) for row in results]
-    text = "\n🐾🐾🐾\n".join(chunks)
+    text = f"\n{runtime.private_separator}\n".join(chunks)
     keyboard = _build_keyboard(query_id, offset=0, page_size=page_size, total_found=len(results))
     await msg.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True, reply_markup=keyboard)
 
@@ -83,7 +83,7 @@ async def handle_private_pagination(update: Update, context: ContextTypes.DEFAUL
         await query.edit_message_text("没有更多结果。")
         return
     keywords = _keywords(q)
-    text = "\n🐾🐾🐾\n".join(render_private_result(row, keywords) for row in results)
+    text = f"\n{runtime.private_separator}\n".join(render_private_result(row, keywords) for row in results)
     keyboard = _build_keyboard(query_id, offset=offset, page_size=page_size, total_found=len(results))
     await query.edit_message_text(
         text=text,
@@ -91,4 +91,3 @@ async def handle_private_pagination(update: Update, context: ContextTypes.DEFAUL
         disable_web_page_preview=True,
         reply_markup=keyboard,
     )
-

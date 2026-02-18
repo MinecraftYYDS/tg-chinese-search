@@ -23,6 +23,7 @@ def test_insert_and_search_channel_filter() -> None:
         edited_timestamp=None,
         source="import",
         channel_username="a_channel",
+        source_link=None,
     )
     msg2 = NormalizedMessage(
         message_id=2,
@@ -32,6 +33,7 @@ def test_insert_and_search_channel_filter() -> None:
         edited_timestamp=None,
         source="import",
         channel_username="b_channel",
+        source_link=None,
     )
     repo.upsert_message(msg1, tokenizer.tokenize(msg1.text))
     repo.upsert_message(msg2, tokenizer.tokenize(msg2.text))
@@ -39,4 +41,3 @@ def test_insert_and_search_channel_filter() -> None:
     rows = repo.search('"你好"*', limit=10, channel="@a_channel")
     assert len(rows) == 1
     assert rows[0].chat_id == 100
-

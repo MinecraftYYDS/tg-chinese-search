@@ -32,6 +32,5 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("未找到匹配结果。")
         return
     keywords = [item for item in parsed.query.split() if item]
-    text = "\n🐾🐾🐾\n".join(render_private_result(row, keywords) for row in results)
+    text = f"\n{runtime.private_separator}\n".join(render_private_result(row, keywords) for row in results)
     await message.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
-

@@ -42,8 +42,13 @@ def render_private_result(row: SearchRow, keywords: list[str]) -> str:
     channel_label = f"@{row.channel_username}" if row.channel_username else str(row.chat_id)
     preview = _truncate(row.text, 50)
     content = _highlight_html(preview, keywords)
-    link = build_message_link(row.channel_username, row.message_id)
-    link_text = f'<a href="{html.escape(link)}">跳转到原文</a>' if link else "不可跳转（无公开用户名）"
+    link = build_message_link(
+        row.channel_username,
+        row.message_id,
+        source_link=row.source_link,
+        chat_id=row.chat_id,
+    )
+    link_text = f'<a href="{html.escape(link)}">跳转到原文</a>' if link else "不可跳转（链接信息不足）"
     return (
         f"📌 <b>频道：</b>{html.escape(channel_label)}\n"
         f"🕒 <b>时间：</b>{_format_time(row.timestamp)}\n"
@@ -62,8 +67,12 @@ def render_inline_description(row: SearchRow) -> str:
 
 
 def render_inline_message(row: SearchRow) -> str:
-    link = build_message_link(row.channel_username, row.message_id)
+    link = build_message_link(
+        row.channel_username,
+        row.message_id,
+        source_link=row.source_link,
+        chat_id=row.chat_id,
+    )
     if link:
         return f"{row.text}\n\n[查看原文]({link})"
     return f"{row.text}\n\n原文链接不可用"
-

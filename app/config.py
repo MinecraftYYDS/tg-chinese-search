@@ -31,6 +31,7 @@ class Settings:
     sqlite_path: str
     default_search_limit: int
     private_page_size: int
+    private_separator: str
     webhook_url: str
     webhook_listen_host: str
     webhook_listen_port: int
@@ -75,6 +76,7 @@ def load_settings() -> Settings:
         sqlite_path=os.getenv("SQLITE_PATH", "data/tg_search.db").strip(),
         default_search_limit=int(os.getenv("DEFAULT_SEARCH_LIMIT", "50")),
         private_page_size=int(os.getenv("PRIVATE_PAGE_SIZE", "10")),
+        private_separator=os.getenv("PRIVATE_SEPARATOR", "🐾🐾🐾"),
         webhook_url=os.getenv("WEBHOOK_URL", "").strip(),
         webhook_listen_host=os.getenv("WEBHOOK_LISTEN_HOST", "0.0.0.0").strip(),
         webhook_listen_port=int(os.getenv("WEBHOOK_LISTEN_PORT", "8443")),
@@ -90,4 +92,3 @@ def load_settings() -> Settings:
         telegram_proxy_url=os.getenv("TELEGRAM_PROXY_URL"),
         proxy_fail_open=_parse_bool(os.getenv("PROXY_FAIL_OPEN"), True),
     )
-
