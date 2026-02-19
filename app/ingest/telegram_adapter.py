@@ -24,16 +24,55 @@ async def on_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if update.channel_post is None:
         return
     runtime = _runtime(context)
-    ok = handle_channel_message(update.channel_post, runtime.repo, runtime.tokenizer)
-    if not ok:
-        logger.debug("skip channel_post")
+    post = update.channel_post
+    logger.info(
+        "received channel_post chat_id=%s message_id=%s has_text=%s has_caption=%s",
+        post.chat_id,
+        post.message_id,
+        bool(post.text),
+        bool(post.caption),
+    )
+    result = handle_channel_message(post, runtime.repo, runtime.tokenizer)
+    if result.ok:
+        logger.info(
+            "indexed channel_post chat_id=%s message_id=%s text_len=%s",
+            result.chat_id,
+            result.message_id,
+            result.text_len,
+        )
+        return
+    logger.warning(
+        "skipped channel_post reason=%s chat_id=%s message_id=%s",
+        result.reason,
+        result.chat_id,
+        result.message_id,
+    )
 
 
 async def on_edited_channel_post(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if update.edited_channel_post is None:
         return
     runtime = _runtime(context)
-    ok = handle_channel_message(update.edited_channel_post, runtime.repo, runtime.tokenizer)
-    if not ok:
-        logger.debug("skip edited_channel_post")
-
+    post = update.edited_channel_post
+    logger.info(
+        "received edited_channel_post chat_id=%s message_id=%s has_text=%s has_caption=%s",
+        post.chat_id,
+        post.message_id,
+        bool(post.text),
+        bool(post.caption),
+    )
+    result = handle_channel_message(post, runtime.repo, runtime.tokenizer)
+    if result.ok:
+        logger.info(
+            "indexed edited_channel_post chat_id=%s message_id=%s text_len=%s",
+            result.chat_id,
+            result.message_id,
+            result.text_len,
+        )
+        return
+    logger.warning(
+        "skipped edited_channel_post reason=%s chat_id=%s message_id=%s",
+        result.reason,
+        result.chat_id,
+        result.message_id,
+    )

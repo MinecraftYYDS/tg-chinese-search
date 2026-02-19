@@ -43,6 +43,23 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
         offset=0,
         channel_filter=parsed.channel,
     )
+    if not rows:
+        await inline_query.answer(
+            [
+                InlineQueryResultArticle(
+                    id="no_result",
+                    title="没有搜索结果",
+                    description=f"没有搜到 {parsed.query} 的内容",
+                    input_message_content=InputTextMessageContent(
+                        message_text=f"没有搜到 {parsed.query} 的内容",
+                        disable_web_page_preview=True,
+                    ),
+                )
+            ],
+            cache_time=1,
+            is_personal=True,
+        )
+        return
     keywords = extract_keywords(parsed.query)
     results = [
         InlineQueryResultArticle(

@@ -12,6 +12,7 @@ Telegram 频道中文全文搜索机器人（首阶段仅支持频道，不包�
 - 私聊直接输入关键词搜索（支持 `@频道 关键词`）
 - Inline 模式（支持 `#频道 关键词`）
 - `/search` 指令
+- `/start` / `/help` / `/helph`
 - 管理控制台（私聊）：
 - 白名单 ID + 管理员密码双因子
 - 机器人内动态配置（含敏感配置）
@@ -96,6 +97,8 @@ python -m app.main import --json "C:\path\to\result.json" --dry-run
 - 命令：
 - `/search 关键词`
 - `/search @mychannel 关键词`
+- `/start`
+- `/help`（`/helph` 也可）
 
 ## 管理命令（仅私聊）
 
@@ -134,11 +137,20 @@ python -m app.main import --json "C:\path\to\result.json" --dry-run
 /admin_set private_separator ----
 ```
 
+分页会显示 `当前页/总页数`。
+
+私聊内容摘要规则：
+
+- 以第一个关键词为中心，截取前 12 字 + 后 25 字（约 50 字）
+- 若未命中关键词位置则回退到普通 50 字截断
+
 链接生成策略：
 
 - 优先使用导入消息自带 `link`
 - 其次使用 `@channel_username/message_id`
 - 最后尝试 `t.me/c/...` 形式链接
+
+内联结果发送后会带“查看原文”按钮（而不是正文内链接）。
 
 ## 代理配置（Telegram API Only）
 
