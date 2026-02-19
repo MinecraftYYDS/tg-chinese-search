@@ -8,7 +8,7 @@ from telegram.constants import ChatType, ParseMode
 from telegram.ext import ContextTypes
 
 from app.context import RuntimeContext
-from app.interaction.parser import parse_search_input
+from app.interaction.parser import extract_keywords, parse_search_input
 from app.interaction.renderers import render_private_result
 
 
@@ -19,20 +19,17 @@ def _runtime(context: ContextTypes.DEFAULT_TYPE) -> RuntimeContext:
     return cast(RuntimeContext, runtime)
 
 
-def _keywords(query: str) -> list[str]:
-    return [item for item in query.strip().split() if item]
-
-
 def _build_keyboard(query_id: str, offset: int, page_size: int, total_found: int) -> InlineKeyboardMarkup | None:
     buttons: list[InlineKeyboardButton] = []
     prev_offset = max(offset - page_size, 0)
     next_offset = offset + page_size
+    current_page = (offset // page_size) + 1
+    total_pages = max(((total_found - 1) // page_size) + 1, 1)
     if offset > 0:
         buttons.append(InlineKeyboardButton("上一页", callback_data=f"pg:{query_id}:{prev_offset}"))
-    if total_found == page_size:
+    buttons.append(InlineKeyboardButton(f"{current_page}/{total_pages}", callback_data="noop"))
+    if current_page < total_pages:
         buttons.append(InlineKeyboardButton("下一页", callback_data=f"pg:{query_id}:{next_offset}"))
-    if not buttons:
-        return None
     return InlineKeyboardMarkup([buttons])
 
 
@@ -54,12 +51,13 @@ async def handle_private_search(update: Update, context: ContextTypes.DEFAULT_TY
         return
     query_id = str(int(time.time() * 1000))
     user_data = context.user_data.setdefault("search_queries", {})
-    user_data[query_id] = {"query": parsed.query, "channel": parsed.channel}
+    total_found = runtime.search_service.count(parsed.query, channel_filter=parsed.channel)
+    user_data[query_id] = {"query": parsed.query, "channel": parsed.channel, "total_found": total_found}
 
-    keywords = _keywords(parsed.query)
+    keywords = extract_keywords(parsed.query)
     chunks = [render_private_result(row, keywords) for row in results]
     text = f"\n{runtime.private_separator}\n".join(chunks)
-    keyboard = _build_keyboard(query_id, offset=0, page_size=page_size, total_found=len(results))
+    keyboard = _build_keyboard(query_id, offset=0, page_size=page_size, total_found=total_found)
     await msg.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True, reply_markup=keyboard)
 
 
@@ -77,17 +75,25 @@ async def handle_private_pagination(update: Update, context: ContextTypes.DEFAUL
         return
     q = query_state["query"]
     channel = query_state["channel"]
+    total_found = int(query_state.get("total_found", 0))
     page_size = runtime.private_page_size
     results = runtime.search_service.search(q, limit=page_size, offset=offset, channel_filter=channel)
     if not results:
         await query.edit_message_text("没有更多结果。")
         return
-    keywords = _keywords(q)
+    keywords = extract_keywords(q)
     text = f"\n{runtime.private_separator}\n".join(render_private_result(row, keywords) for row in results)
-    keyboard = _build_keyboard(query_id, offset=offset, page_size=page_size, total_found=len(results))
+    keyboard = _build_keyboard(query_id, offset=offset, page_size=page_size, total_found=total_found)
     await query.edit_message_text(
         text=text,
         parse_mode=ParseMode.HTML,
         disable_web_page_preview=True,
         reply_markup=keyboard,
     )
+
+
+async def handle_noop_pagination(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()

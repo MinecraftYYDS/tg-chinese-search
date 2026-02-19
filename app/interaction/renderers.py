@@ -18,6 +18,25 @@ def _truncate(text: str, limit: int) -> str:
     return f"{text[:limit]}..."
 
 
+def _snippet_around_keyword(text: str, keyword: str | None, before: int = 12, after: int = 25) -> str:
+    if not text:
+        return text
+    if not keyword:
+        return _truncate(text, 50)
+    pattern = re.compile(re.escape(keyword), re.IGNORECASE)
+    match = pattern.search(text)
+    if not match:
+        return _truncate(text, 50)
+    start = max(match.start() - before, 0)
+    end = min(match.end() + after, len(text))
+    snippet = text[start:end]
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(text):
+        snippet = snippet + "..."
+    return snippet
+
+
 def _highlight_html(text: str, keywords: list[str]) -> str:
     escaped = html.escape(text)
     for keyword in sorted(set(keywords), key=len, reverse=True):
@@ -40,7 +59,8 @@ def _highlight_md(text: str, keywords: list[str]) -> str:
 
 def render_private_result(row: SearchRow, keywords: list[str]) -> str:
     channel_label = f"@{row.channel_username}" if row.channel_username else str(row.chat_id)
-    preview = _truncate(row.text, 50)
+    first_keyword = keywords[0] if keywords else None
+    preview = _snippet_around_keyword(row.text, first_keyword, before=12, after=25)
     content = _highlight_html(preview, keywords)
     link = build_message_link(
         row.channel_username,
@@ -58,7 +78,8 @@ def render_private_result(row: SearchRow, keywords: list[str]) -> str:
 
 
 def render_inline_title(row: SearchRow, keywords: list[str]) -> str:
-    return _highlight_md(_truncate(row.text, 10), keywords)
+    first_keyword = keywords[0] if keywords else None
+    return _highlight_md(_snippet_around_keyword(row.text, first_keyword, before=2, after=8), keywords)
 
 
 def render_inline_description(row: SearchRow) -> str:
@@ -67,12 +88,4 @@ def render_inline_description(row: SearchRow) -> str:
 
 
 def render_inline_message(row: SearchRow) -> str:
-    link = build_message_link(
-        row.channel_username,
-        row.message_id,
-        source_link=row.source_link,
-        chat_id=row.chat_id,
-    )
-    if link:
-        return f"{row.text}\n\n[查看原文]({link})"
-    return f"{row.text}\n\n原文链接不可用"
+    return row.text

@@ -2,17 +2,23 @@ from __future__ import annotations
 
 from typing import cast
 
-from telegram import InlineQueryResultArticle, InputTextMessageContent, Update
-from telegram.constants import ParseMode
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    Update,
+)
 from telegram.ext import ContextTypes
 
 from app.context import RuntimeContext
-from app.interaction.parser import parse_search_input
+from app.interaction.parser import extract_keywords, parse_search_input
 from app.interaction.renderers import (
     render_inline_description,
     render_inline_message,
     render_inline_title,
 )
+from app.utils.link_builder import build_message_link
 
 
 def _runtime(context: ContextTypes.DEFAULT_TYPE) -> RuntimeContext:
@@ -37,7 +43,7 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
         offset=0,
         channel_filter=parsed.channel,
     )
-    keywords = [item for item in parsed.query.split() if item]
+    keywords = extract_keywords(parsed.query)
     results = [
         InlineQueryResultArticle(
             id=str(item.id),
@@ -45,11 +51,23 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
             description=render_inline_description(item),
             input_message_content=InputTextMessageContent(
                 message_text=render_inline_message(item),
-                parse_mode=ParseMode.MARKDOWN,
                 disable_web_page_preview=False,
+            ),
+            reply_markup=(
+                InlineKeyboardMarkup(
+                    [[InlineKeyboardButton("查看原文", url=link)]]
+                )
+                if (
+                    link := build_message_link(
+                        item.channel_username,
+                        item.message_id,
+                        source_link=item.source_link,
+                        chat_id=item.chat_id,
+                    )
+                )
+                else None
             ),
         )
         for item in rows
     ]
     await inline_query.answer(results, cache_time=1, is_personal=True)
-

@@ -124,6 +124,23 @@ class MessageRepository:
             for row in rows
         ]
 
+    def search_count(self, fts_query: str, channel: str | int | None = None) -> int:
+        chat_id = self.resolve_channel(channel)
+        if channel is not None and chat_id is None:
+            return 0
+        sql = """
+            SELECT COUNT(1) AS c
+            FROM channel_messages_fts f
+            JOIN channel_messages m ON m.id = f.rowid
+            WHERE channel_messages_fts MATCH ?
+        """
+        params: list[object] = [fts_query]
+        if chat_id is not None:
+            sql += " AND m.chat_id = ?"
+            params.append(chat_id)
+        row = self.conn.execute(sql, tuple(params)).fetchone()
+        return int(row["c"]) if row else 0
+
     def set_config(self, key: str, value: str, is_sensitive: bool) -> None:
         with self.conn:
             self.conn.execute(

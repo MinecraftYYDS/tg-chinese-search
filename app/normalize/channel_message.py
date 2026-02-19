@@ -45,6 +45,10 @@ def normalize_channel_message(raw: Any, source: str = "live") -> NormalizedMessa
     text = getattr(raw, "text", None)
     if text is None and isinstance(raw, dict):
         text = raw.get("text")
+    if text is None:
+        text = getattr(raw, "caption", None)
+    if text is None and isinstance(raw, dict):
+        text = raw.get("caption")
     text = extract_text_field(text).strip()
     if not text:
         return None
@@ -76,6 +80,9 @@ def normalize_channel_message(raw: Any, source: str = "live") -> NormalizedMessa
     username = getattr(chat, "username", None) if chat is not None else None
     if username is None and isinstance(chat, dict):
         username = chat.get("username")
+    source_link = getattr(raw, "link", None)
+    if source_link is None and isinstance(raw, dict):
+        source_link = raw.get("link")
 
     return NormalizedMessage(
         message_id=int(message_id),
@@ -85,5 +92,5 @@ def normalize_channel_message(raw: Any, source: str = "live") -> NormalizedMessa
         edited_timestamp=edited_timestamp,
         source=source,
         channel_username=username,
-        source_link=None,
+        source_link=source_link if isinstance(source_link, str) else None,
     )

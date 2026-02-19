@@ -28,3 +28,12 @@ class SearchService:
             return []
         return self.repo.search(fts_query=fts_query, limit=limit, offset=offset, channel=channel_filter)
 
+    def count(self, query: str, channel_filter: str | int | None = None) -> int:
+        query = query.strip()
+        if not query:
+            return 0
+        tokens = self.tokenizer.tokenize(query)
+        fts_query = build_fts_query(tokens)
+        if not fts_query:
+            return 0
+        return self.repo.search_count(fts_query=fts_query, channel=channel_filter)

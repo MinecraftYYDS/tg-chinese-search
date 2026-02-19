@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
+
+
+KEYWORD_SPLIT_RE = re.compile(r"[^\w\u4e00-\u9fff]+", re.UNICODE)
 
 
 @dataclass(slots=True)
@@ -23,3 +27,6 @@ def parse_search_input(text: str, mode: str) -> ParsedQuery:
         return ParsedQuery(channel=first[1:], query=rest.strip())
     return ParsedQuery(channel=None, query=raw)
 
+
+def extract_keywords(query: str) -> list[str]:
+    return [item for item in KEYWORD_SPLIT_RE.split(query.strip()) if item]

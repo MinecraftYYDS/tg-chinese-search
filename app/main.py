@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import time
 
 from cryptography.fernet import Fernet
 from telegram.ext import (
@@ -21,9 +22,13 @@ from app.config import Settings, load_settings
 from app.context import RuntimeContext
 from app.importer.telegram_json import import_telegram_export
 from app.ingest.telegram_adapter import on_channel_post, on_edited_channel_post
-from app.interaction.commands import search_command
+from app.interaction.commands import help_command, search_command, start_command
 from app.interaction.inline_mode import handle_inline_query
-from app.interaction.private_chat import handle_private_pagination, handle_private_search
+from app.interaction.private_chat import (
+    handle_noop_pagination,
+    handle_private_pagination,
+    handle_private_search,
+)
 from app.network.proxy import apply_proxy
 from app.search.service import SearchService
 from app.search.tokenizer import default_tokenizer
@@ -126,8 +131,12 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("admin_logout", admin_logout))
     app.add_handler(CommandHandler("admin_apply", admin_apply))
 
+    app.add_handler(CommandHandler("start", start_command))
+    app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("helph", help_command))
     app.add_handler(CommandHandler("search", search_command))
     app.add_handler(InlineQueryHandler(handle_inline_query))
+    app.add_handler(CallbackQueryHandler(handle_noop_pagination, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(handle_private_pagination, pattern=r"^pg:"))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_private_search))
     app.add_handler(
@@ -150,21 +159,32 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
 def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
     if not settings.bot_token:
         raise ValueError("BOT_TOKEN missing (or not configured in dynamic config)")
-    app = _build_application(settings, runtime)
-    if settings.app_mode == "webhook":
-        kwargs = dict(
-            listen=settings.webhook_listen_host,
-            port=settings.webhook_listen_port,
-            webhook_url=settings.webhook_url,
-            allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
-            drop_pending_updates=False,
-        )
-        if settings.webhook_cert_path and settings.webhook_key_path:
-            kwargs["cert"] = settings.webhook_cert_path
-            kwargs["key"] = settings.webhook_key_path
-        app.run_webhook(**kwargs)
-        return
-    app.run_polling(allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"])
+    retry_seconds = 5
+    while True:
+        app = _build_application(settings, runtime)
+        try:
+            if settings.app_mode == "webhook":
+                kwargs = dict(
+                    listen=settings.webhook_listen_host,
+                    port=settings.webhook_listen_port,
+                    webhook_url=settings.webhook_url,
+                    allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
+                    drop_pending_updates=False,
+                    bootstrap_retries=-1,
+                )
+                if settings.webhook_cert_path and settings.webhook_key_path:
+                    kwargs["cert"] = settings.webhook_cert_path
+                    kwargs["key"] = settings.webhook_key_path
+                app.run_webhook(**kwargs)
+                return
+            app.run_polling(
+                allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
+                bootstrap_retries=-1,
+            )
+            return
+        except Exception:
+            logger.exception("Bot crashed due to network/runtime error. Retrying in %s seconds.", retry_seconds)
+            time.sleep(retry_seconds)
 
 
 def run_import(settings: Settings, runtime: RuntimeContext, json_path: str, dry_run: bool) -> None:
