@@ -44,6 +44,8 @@ logging.basicConfig(
     level=logging.INFO,
 )
 logger = logging.getLogger(__name__)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
 
 def _seed_dynamic_config(config_store: ConfigStore, settings: Settings) -> None:
@@ -151,7 +153,18 @@ async def _error_handler(update: object, context) -> None:
 
 
 def _build_application(settings: Settings, runtime: RuntimeContext) -> Application:
-    builder = ApplicationBuilder().token(settings.bot_token)
+    builder = (
+        ApplicationBuilder()
+        .token(settings.bot_token)
+        .connect_timeout(10)
+        .read_timeout(30)
+        .write_timeout(30)
+        .pool_timeout(10)
+        .get_updates_connect_timeout(10)
+        .get_updates_read_timeout(30)
+        .get_updates_write_timeout(30)
+        .get_updates_pool_timeout(10)
+    )
     apply_proxy(builder, settings.telegram_proxy_enabled, settings.telegram_proxy_url)
     app = builder.build()
     app.bot_data["runtime"] = runtime
@@ -215,6 +228,8 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
                     app.run_polling(
                         allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
                         bootstrap_retries=-1,
+                        timeout=20,
+                        poll_interval=0.5,
                     )
                 logger.error("Polling/webhook returned unexpectedly. Restarting in %s seconds.", retry_seconds)
                 time.sleep(retry_seconds)
