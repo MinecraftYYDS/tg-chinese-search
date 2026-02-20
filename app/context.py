@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import time
 
 from app.admin.auth import AdminAuthService
 from app.admin.config_store import ConfigStore
@@ -20,3 +21,5 @@ class RuntimeContext:
     private_page_size: int
     private_separator: str
     proxy_fail_open: bool
+    last_update_ts: float = 0.0
+    started_at_ts: float = field(default_factory=time.time)

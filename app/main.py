@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import argparse
 import logging
+import threading
 import time
 
 from cryptography.fernet import Fernet
+from telegram import Update
 from telegram.ext import (
     Application,
     ApplicationBuilder,
@@ -12,6 +14,7 @@ from telegram.ext import (
     CommandHandler,
     InlineQueryHandler,
     MessageHandler,
+    TypeHandler,
     filters,
 )
 
@@ -21,7 +24,7 @@ from app.admin.config_store import ConfigStore
 from app.config import Settings, load_settings
 from app.context import RuntimeContext
 from app.importer.telegram_json import import_telegram_export
-from app.ingest.telegram_adapter import on_channel_post, on_edited_channel_post
+from app.ingest.telegram_adapter import on_any_update
 from app.interaction.commands import help_command, search_command, start_command
 from app.interaction.inline_mode import handle_inline_query
 from app.interaction.private_chat import (
@@ -124,6 +127,8 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
 
 
 def _register_handlers(app: Application) -> None:
+    app.add_handler(TypeHandler(type=Update, callback=on_any_update), group=-1)
+
     app.add_handler(CommandHandler("admin_login", admin_login))
     app.add_handler(CommandHandler("admin_set", admin_set))
     app.add_handler(CommandHandler("admin_get", admin_get))
@@ -139,12 +144,10 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(CallbackQueryHandler(handle_noop_pagination, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(handle_private_pagination, pattern=r"^pg:"))
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_private_search))
-    app.add_handler(
-        MessageHandler(filters.UpdateType.CHANNEL_POST & filters.ALL, on_channel_post)
-    )
-    app.add_handler(
-        MessageHandler(filters.UpdateType.EDITED_CHANNEL_POST & filters.ALL, on_edited_channel_post)
-    )
+
+
+async def _error_handler(update: object, context) -> None:
+    logger.exception("Unhandled PTB error on update=%s", update)
 
 
 def _build_application(settings: Settings, runtime: RuntimeContext) -> Application:
@@ -153,38 +156,76 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
     app = builder.build()
     app.bot_data["runtime"] = runtime
     _register_handlers(app)
+    app.add_error_handler(_error_handler)
     return app
+
+
+def _start_heartbeat(runtime: RuntimeContext) -> threading.Event:
+    stop_event = threading.Event()
+
+    def _worker() -> None:
+        while not stop_event.is_set():
+            now = time.time()
+            up_sec = int(now - runtime.started_at_ts)
+            if runtime.last_update_ts > 0:
+                idle_sec = int(now - runtime.last_update_ts)
+                logger.info("heartbeat: alive uptime=%ss last_update_ago=%ss", up_sec, idle_sec)
+            else:
+                logger.info("heartbeat: alive uptime=%ss no_updates_yet=true", up_sec)
+            stop_event.wait(60)
+
+    thread = threading.Thread(target=_worker, daemon=True, name="bot-heartbeat")
+    thread.start()
+    return stop_event
 
 
 def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
     if not settings.bot_token:
         raise ValueError("BOT_TOKEN missing (or not configured in dynamic config)")
+    logger.info(
+        "Starting bot mode=%s allowed_updates=%s",
+        settings.app_mode,
+        ["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
+    )
+    logger.info(
+        "If no channel updates arrive: ensure bot is admin in the channel and no conflicting webhook/polling setup."
+    )
+    heartbeat_stop = _start_heartbeat(runtime)
     retry_seconds = 5
-    while True:
-        app = _build_application(settings, runtime)
-        try:
-            if settings.app_mode == "webhook":
-                kwargs = dict(
-                    listen=settings.webhook_listen_host,
-                    port=settings.webhook_listen_port,
-                    webhook_url=settings.webhook_url,
-                    allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
-                    drop_pending_updates=False,
-                    bootstrap_retries=-1,
-                )
-                if settings.webhook_cert_path and settings.webhook_key_path:
-                    kwargs["cert"] = settings.webhook_cert_path
-                    kwargs["key"] = settings.webhook_key_path
-                app.run_webhook(**kwargs)
+    try:
+        while True:
+            app = _build_application(settings, runtime)
+            try:
+                if settings.app_mode == "webhook":
+                    kwargs = dict(
+                        listen=settings.webhook_listen_host,
+                        port=settings.webhook_listen_port,
+                        webhook_url=settings.webhook_url,
+                        allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
+                        drop_pending_updates=False,
+                        bootstrap_retries=-1,
+                    )
+                    if settings.webhook_cert_path and settings.webhook_key_path:
+                        kwargs["cert"] = settings.webhook_cert_path
+                        kwargs["key"] = settings.webhook_key_path
+                    logger.warning("Starting webhook loop instance")
+                    app.run_webhook(**kwargs)
+                else:
+                    logger.warning("Starting polling loop instance")
+                    app.run_polling(
+                        allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
+                        bootstrap_retries=-1,
+                    )
+                logger.error("Polling/webhook returned unexpectedly. Restarting in %s seconds.", retry_seconds)
+                time.sleep(retry_seconds)
+            except KeyboardInterrupt:
+                logger.info("KeyboardInterrupt received, bot exiting")
                 return
-            app.run_polling(
-                allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
-                bootstrap_retries=-1,
-            )
-            return
-        except Exception:
-            logger.exception("Bot crashed due to network/runtime error. Retrying in %s seconds.", retry_seconds)
-            time.sleep(retry_seconds)
+            except Exception:
+                logger.exception("Bot crashed due to network/runtime error. Retrying in %s seconds.", retry_seconds)
+                time.sleep(retry_seconds)
+    finally:
+        heartbeat_stop.set()
 
 
 def run_import(settings: Settings, runtime: RuntimeContext, json_path: str, dry_run: bool) -> None:

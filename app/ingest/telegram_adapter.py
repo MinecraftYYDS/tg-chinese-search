@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from typing import cast
 
 from telegram import Update
@@ -76,3 +77,21 @@ async def on_edited_channel_post(update: Update, context: ContextTypes.DEFAULT_T
         result.chat_id,
         result.message_id,
     )
+
+
+async def on_any_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    runtime = _runtime(context)
+    runtime.last_update_ts = time.time()
+    logger.info(
+        "update arrived: update_id=%s has_message=%s has_channel_post=%s has_edited_channel_post=%s has_inline_query=%s",
+        update.update_id,
+        bool(update.message),
+        bool(update.channel_post),
+        bool(update.edited_channel_post),
+        bool(update.inline_query),
+    )
+    if update.channel_post is not None:
+        await on_channel_post(update, context)
+        return
+    if update.edited_channel_post is not None:
+        await on_edited_channel_post(update, context)
