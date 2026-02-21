@@ -22,4 +22,5 @@ class RuntimeContext:
     private_separator: str
     proxy_fail_open: bool
     last_update_ts: float = 0.0
+    last_api_ok_ts: float = 0.0
     started_at_ts: float = field(default_factory=time.time)

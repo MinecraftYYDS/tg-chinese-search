@@ -11,6 +11,7 @@ from telegram.ext import (
     Application,
     ApplicationBuilder,
     CallbackQueryHandler,
+    ContextTypes,
     CommandHandler,
     InlineQueryHandler,
     MessageHandler,
@@ -149,7 +150,33 @@ def _register_handlers(app: Application) -> None:
 
 
 async def _error_handler(update: object, context) -> None:
-    logger.exception("Unhandled PTB error on update=%s", update)
+    err = getattr(context, "error", None)
+    if isinstance(err, BaseException):
+        logger.error("Unhandled PTB error on update=%s error=%r", update, err, exc_info=err)
+        return
+    logger.error("Unhandled PTB error on update=%s error=%r", update, err)
+
+
+async def _api_probe_job(context: ContextTypes.DEFAULT_TYPE) -> None:
+    runtime = context.application.bot_data.get("runtime")
+    if runtime is None:
+        return
+    now = time.time()
+    try:
+        await context.bot.get_me(
+            connect_timeout=10,
+            read_timeout=15,
+            write_timeout=15,
+            pool_timeout=10,
+        )
+        runtime.last_api_ok_ts = now
+        logger.debug("api_probe_ok")
+    except Exception as exc:
+        logger.warning("api_probe_failed error=%r", exc)
+    stale_seconds = int(now - runtime.last_api_ok_ts) if runtime.last_api_ok_ts > 0 else 10**9
+    if stale_seconds > 180:
+        logger.error("API stale for %ss, forcing application stop to self-heal", stale_seconds)
+        await context.application.stop()
 
 
 def _build_application(settings: Settings, runtime: RuntimeContext) -> Application:
@@ -168,8 +195,10 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
     apply_proxy(builder, settings.telegram_proxy_enabled, settings.telegram_proxy_url)
     app = builder.build()
     app.bot_data["runtime"] = runtime
+    runtime.last_api_ok_ts = time.time()
     _register_handlers(app)
     app.add_error_handler(_error_handler)
+    app.job_queue.run_repeating(_api_probe_job, interval=60, first=10, name="api_probe")
     return app
 
 
@@ -180,11 +209,21 @@ def _start_heartbeat(runtime: RuntimeContext) -> threading.Event:
         while not stop_event.is_set():
             now = time.time()
             up_sec = int(now - runtime.started_at_ts)
+            api_stale = int(now - runtime.last_api_ok_ts) if runtime.last_api_ok_ts > 0 else -1
             if runtime.last_update_ts > 0:
                 idle_sec = int(now - runtime.last_update_ts)
-                logger.info("heartbeat: alive uptime=%ss last_update_ago=%ss", up_sec, idle_sec)
+                logger.info(
+                    "heartbeat: alive uptime=%ss last_update_ago=%ss api_last_ok_ago=%ss",
+                    up_sec,
+                    idle_sec,
+                    api_stale,
+                )
             else:
-                logger.info("heartbeat: alive uptime=%ss no_updates_yet=true", up_sec)
+                logger.info(
+                    "heartbeat: alive uptime=%ss no_updates_yet=true api_last_ok_ago=%ss",
+                    up_sec,
+                    api_stale,
+                )
             stop_event.wait(60)
 
     thread = threading.Thread(target=_worker, daemon=True, name="bot-heartbeat")
