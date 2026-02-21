@@ -198,7 +198,12 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
     runtime.last_api_ok_ts = time.time()
     _register_handlers(app)
     app.add_error_handler(_error_handler)
-    app.job_queue.run_repeating(_api_probe_job, interval=60, first=10, name="api_probe")
+    if app.job_queue is not None:
+        app.job_queue.run_repeating(_api_probe_job, interval=60, first=10, name="api_probe")
+    else:
+        logger.warning(
+            "JobQueue not available; api probe scheduler disabled. Install python-telegram-bot[job-queue] to enable it."
+        )
     return app
 
 
