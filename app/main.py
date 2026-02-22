@@ -175,8 +175,9 @@ async def _api_probe_job(context: ContextTypes.DEFAULT_TYPE) -> None:
         logger.warning("api_probe_failed error=%r", exc)
     stale_seconds = int(now - runtime.last_api_ok_ts) if runtime.last_api_ok_ts > 0 else 10**9
     if stale_seconds > 180:
-        logger.error("API stale for %ss, forcing application stop to self-heal", stale_seconds)
-        await context.application.stop()
+        logger.error("API stale for %ss, forcing polling restart via stop_running()", stale_seconds)
+        context.application.stop_running()
+        return
 
 
 def _build_application(settings: Settings, runtime: RuntimeContext) -> Application:
@@ -199,7 +200,17 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
     _register_handlers(app)
     app.add_error_handler(_error_handler)
     if app.job_queue is not None:
-        app.job_queue.run_repeating(_api_probe_job, interval=60, first=10, name="api_probe")
+        app.job_queue.run_repeating(
+            _api_probe_job,
+            interval=60,
+            first=10,
+            name="api_probe",
+            job_kwargs={
+                "max_instances": 1,
+                "coalesce": True,
+                "misfire_grace_time": 30,
+            },
+        )
     else:
         logger.warning(
             "JobQueue not available; api probe scheduler disabled. Install python-telegram-bot[job-queue] to enable it."
