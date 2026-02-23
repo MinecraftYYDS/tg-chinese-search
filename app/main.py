@@ -61,6 +61,7 @@ def _seed_dynamic_config(config_store: ConfigStore, settings: Settings) -> None:
         "default_search_limit": str(settings.default_search_limit),
         "private_page_size": str(settings.private_page_size),
         "private_separator": settings.private_separator,
+        "polling_idle_restart_seconds": str(settings.polling_idle_restart_seconds),
     }
     for key, value in defaults.items():
         if config_store.get(key) is None and value != "":
@@ -97,6 +98,11 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
     settings.private_separator = _resolve_runtime_value(
         config_store, "private_separator", settings.private_separator
     )
+    settings.polling_idle_restart_seconds = int(
+        _resolve_runtime_value(
+            config_store, "polling_idle_restart_seconds", str(settings.polling_idle_restart_seconds)
+        )
+    )
     settings.webhook_url = _resolve_runtime_value(config_store, "webhook_url", settings.webhook_url)
     settings.webhook_listen_host = _resolve_runtime_value(
         config_store, "webhook_listen_host", settings.webhook_listen_host
@@ -125,6 +131,7 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
         private_page_size=settings.private_page_size,
         private_separator=settings.private_separator,
         proxy_fail_open=settings.proxy_fail_open,
+        polling_idle_restart_seconds=settings.polling_idle_restart_seconds,
     )
     return runtime, settings
 
@@ -161,6 +168,7 @@ async def _api_probe_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     runtime = context.application.bot_data.get("runtime")
     if runtime is None:
         return
+    mode = str(context.application.bot_data.get("app_mode", "polling"))
     now = time.time()
     try:
         await context.bot.get_me(
@@ -174,16 +182,90 @@ async def _api_probe_job(context: ContextTypes.DEFAULT_TYPE) -> None:
     except Exception as exc:
         logger.warning("api_probe_failed error=%r", exc)
     stale_seconds = int(now - runtime.last_api_ok_ts) if runtime.last_api_ok_ts > 0 else 10**9
+    if (
+        mode == "polling"
+        and runtime.polling_idle_restart_seconds > 0
+        and runtime.last_update_ts > 0
+        and stale_seconds <= 120
+    ):
+        idle_seconds = int(now - runtime.last_update_ts)
+        if idle_seconds > runtime.polling_idle_restart_seconds:
+            logger.error(
+                "No updates for %ss while API healthy (%ss); forcing polling restart via stop_running()",
+                idle_seconds,
+                stale_seconds,
+            )
+            runtime.last_update_ts = now
+            context.application.stop_running()
+            return
     if stale_seconds > 180:
         logger.error("API stale for %ss, forcing polling restart via stop_running()", stale_seconds)
         context.application.stop_running()
         return
 
 
+async def _post_init(app: Application) -> None:
+    mode = str(app.bot_data.get("app_mode", "polling"))
+    try:
+        me = await app.bot.get_me(
+            connect_timeout=10,
+            read_timeout=15,
+            write_timeout=15,
+            pool_timeout=10,
+        )
+        logger.warning(
+            "bot identity: id=%s username=@%s mode=%s",
+            me.id,
+            me.username,
+            mode,
+        )
+    except Exception as exc:
+        logger.warning("bot identity probe failed error=%r", exc)
+        return
+
+    try:
+        info = await app.bot.get_webhook_info(
+            connect_timeout=10,
+            read_timeout=15,
+            write_timeout=15,
+            pool_timeout=10,
+        )
+        logger.warning(
+            "webhook info: url=%s pending=%s last_error_date=%s last_error_message=%s",
+            info.url,
+            info.pending_update_count,
+            info.last_error_date,
+            info.last_error_message,
+        )
+        if mode == "polling" and info.url:
+            logger.warning("webhook is set while in polling mode; deleting webhook")
+            await app.bot.delete_webhook(
+                drop_pending_updates=False,
+                connect_timeout=10,
+                read_timeout=15,
+                write_timeout=15,
+                pool_timeout=10,
+            )
+            info2 = await app.bot.get_webhook_info(
+                connect_timeout=10,
+                read_timeout=15,
+                write_timeout=15,
+                pool_timeout=10,
+            )
+            logger.warning(
+                "webhook delete result: url=%s pending=%s",
+                info2.url,
+                info2.pending_update_count,
+            )
+    except Exception as exc:
+        logger.warning("webhook probe failed error=%r", exc)
+
+
 def _build_application(settings: Settings, runtime: RuntimeContext) -> Application:
     builder = (
         ApplicationBuilder()
         .token(settings.bot_token)
+        .post_init(_post_init)
         .connect_timeout(10)
         .read_timeout(30)
         .write_timeout(30)
@@ -196,6 +278,7 @@ def _build_application(settings: Settings, runtime: RuntimeContext) -> Applicati
     apply_proxy(builder, settings.telegram_proxy_enabled, settings.telegram_proxy_url)
     app = builder.build()
     app.bot_data["runtime"] = runtime
+    app.bot_data["app_mode"] = settings.app_mode
     runtime.last_api_ok_ts = time.time()
     _register_handlers(app)
     app.add_error_handler(_error_handler)

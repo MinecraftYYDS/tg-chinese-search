@@ -46,6 +46,7 @@ class Settings:
     telegram_proxy_enabled: bool
     telegram_proxy_url: str | None
     proxy_fail_open: bool
+    polling_idle_restart_seconds: int
 
     @property
     def encryption_key_bytes(self) -> bytes:
@@ -91,4 +92,5 @@ def load_settings() -> Settings:
         telegram_proxy_enabled=_parse_bool(os.getenv("TELEGRAM_PROXY_ENABLED"), False),
         telegram_proxy_url=os.getenv("TELEGRAM_PROXY_URL"),
         proxy_fail_open=_parse_bool(os.getenv("PROXY_FAIL_OPEN"), True),
+        polling_idle_restart_seconds=int(os.getenv("POLLING_IDLE_RESTART_SECONDS", "3600")),
     )
