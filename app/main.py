@@ -355,6 +355,7 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
                         allowed_updates=["channel_post", "edited_channel_post", "message", "inline_query", "callback_query"],
                         drop_pending_updates=False,
                         bootstrap_retries=-1,
+                        close_loop=False,
                     )
                     if settings.webhook_cert_path and settings.webhook_key_path:
                         kwargs["cert"] = settings.webhook_cert_path
@@ -368,6 +369,7 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
                         bootstrap_retries=-1,
                         timeout=20,
                         poll_interval=0.5,
+                        close_loop=False,
                     )
                 logger.error("Polling/webhook returned unexpectedly. Restarting in %s seconds.", retry_seconds)
                 time.sleep(retry_seconds)
