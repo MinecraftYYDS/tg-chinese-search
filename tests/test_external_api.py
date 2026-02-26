@@ -50,6 +50,8 @@ def _build_runtime(tmp_path: Path, enabled: bool, token: str) -> RuntimeContext:
         admin_auth=None,
         config_store=store,
         default_search_limit=10,
+        default_random_limit=1,
+        max_random_limit=10,
         private_page_size=10,
         private_separator="---",
         proxy_fail_open=True,
@@ -131,3 +133,39 @@ def test_external_api_requires_token_when_configured(tmp_path: Path) -> None:
     assert payload_bad_token["code"] == "unauthorized"
     assert status_ok == 200
     assert payload_ok["data"]["total"] == 1
+
+
+def test_external_random_api_supports_channel_and_limit(tmp_path: Path) -> None:
+    runtime = _build_runtime(tmp_path=tmp_path, enabled=True, token="")
+    server = ExternalSearchApiServer(runtime=runtime, host="127.0.0.1", port=0)
+    server.start()
+    try:
+        status, payload = _request_json(
+            f"http://127.0.0.1:{server.bound_port}/api/random?channel=@mychannel&limit=3"
+        )
+    finally:
+        server.stop()
+
+    assert status == 200
+    assert payload["code"] == "ok"
+    data = payload["data"]
+    assert data["channel"] == "@mychannel"
+    assert data["limit"] == 3
+    assert data["total"] == 1
+    assert len(data["items"]) == 1
+    assert data["items"][0]["chat_id"] == -100123
+
+
+def test_external_random_api_rejects_non_positive_limit(tmp_path: Path) -> None:
+    runtime = _build_runtime(tmp_path=tmp_path, enabled=True, token="")
+    server = ExternalSearchApiServer(runtime=runtime, host="127.0.0.1", port=0)
+    server.start()
+    try:
+        status, payload = _request_json(
+            f"http://127.0.0.1:{server.bound_port}/api/random?limit=0"
+        )
+    finally:
+        server.stop()
+
+    assert status == 400
+    assert payload["code"] == "invalid_params"

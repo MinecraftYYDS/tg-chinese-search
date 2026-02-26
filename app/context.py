@@ -18,6 +18,8 @@ class RuntimeContext:
     admin_auth: AdminAuthService
     config_store: ConfigStore
     default_search_limit: int
+    default_random_limit: int
+    max_random_limit: int
     private_page_size: int
     private_separator: str
     proxy_fail_open: bool

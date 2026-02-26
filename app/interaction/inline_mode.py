@@ -33,6 +33,41 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
     if inline_query is None:
         return
     runtime = _runtime(context)
+    raw_query = inline_query.query.strip()
+    if not raw_query:
+        random_rows = runtime.search_service.random(limit=runtime.default_random_limit)
+        if not random_rows:
+            await inline_query.answer([], cache_time=1, is_personal=True)
+            return
+        random_results = [
+            InlineQueryResultArticle(
+                id=f"random:{item.id}",
+                title=render_inline_title(item, []),
+                description=render_inline_description(item),
+                input_message_content=InputTextMessageContent(
+                    message_text=render_inline_message(item),
+                    disable_web_page_preview=False,
+                ),
+                reply_markup=(
+                    InlineKeyboardMarkup(
+                        [[InlineKeyboardButton("查看原文", url=link)]]
+                    )
+                    if (
+                        link := build_message_link(
+                            item.channel_username,
+                            item.message_id,
+                            source_link=item.source_link,
+                            chat_id=item.chat_id,
+                        )
+                    )
+                    else None
+                ),
+            )
+            for item in random_rows
+        ]
+        await inline_query.answer(random_results, cache_time=1, is_personal=True)
+        return
+
     parsed = parse_search_input(inline_query.query, mode="inline")
     if not parsed.query:
         await inline_query.answer([], cache_time=1, is_personal=True)

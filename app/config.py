@@ -30,6 +30,8 @@ class Settings:
     app_mode: str
     sqlite_path: str
     default_search_limit: int
+    default_random_limit: int
+    max_random_limit: int
     private_page_size: int
     private_separator: str
     webhook_url: str
@@ -80,6 +82,8 @@ def load_settings() -> Settings:
         app_mode=os.getenv("APP_MODE", "polling").strip(),
         sqlite_path=os.getenv("SQLITE_PATH", "data/tg_search.db").strip(),
         default_search_limit=int(os.getenv("DEFAULT_SEARCH_LIMIT", "50")),
+        default_random_limit=int(os.getenv("DEFAULT_RANDOM_LIMIT", "1")),
+        max_random_limit=int(os.getenv("MAX_RANDOM_LIMIT", "10")),
         private_page_size=int(os.getenv("PRIVATE_PAGE_SIZE", "10")),
         private_separator=os.getenv("PRIVATE_SEPARATOR", "🐾🐾🐾"),
         webhook_url=os.getenv("WEBHOOK_URL", "").strip(),

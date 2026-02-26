@@ -41,3 +41,70 @@ def test_insert_and_search_channel_filter() -> None:
     rows = repo.search('"你好"*', limit=10, channel="@a_channel")
     assert len(rows) == 1
     assert rows[0].chat_id == 100
+
+
+def test_random_messages_with_channel_filter() -> None:
+    repo = _repo()
+    tokenizer = default_tokenizer()
+
+    msg1 = NormalizedMessage(
+        message_id=1,
+        chat_id=100,
+        text="随机文案 A",
+        timestamp=1000,
+        edited_timestamp=None,
+        source="import",
+        channel_username="a_channel",
+        source_link=None,
+    )
+    msg2 = NormalizedMessage(
+        message_id=2,
+        chat_id=200,
+        text="随机文案 B",
+        timestamp=1001,
+        edited_timestamp=None,
+        source="import",
+        channel_username="b_channel",
+        source_link=None,
+    )
+    repo.upsert_message(msg1, tokenizer.tokenize(msg1.text))
+    repo.upsert_message(msg2, tokenizer.tokenize(msg2.text))
+
+    rows = repo.random_messages(limit=10, channel="@a_channel")
+    assert len(rows) == 1
+    assert rows[0].chat_id == 100
+
+
+def test_random_count_with_channel_filter() -> None:
+    repo = _repo()
+    tokenizer = default_tokenizer()
+
+    repo.upsert_message(
+        NormalizedMessage(
+            message_id=1,
+            chat_id=100,
+            text="随机文案 A",
+            timestamp=1000,
+            edited_timestamp=None,
+            source="import",
+            channel_username="a_channel",
+            source_link=None,
+        ),
+        tokenizer.tokenize("随机文案 A"),
+    )
+    repo.upsert_message(
+        NormalizedMessage(
+            message_id=2,
+            chat_id=100,
+            text="随机文案 B",
+            timestamp=1001,
+            edited_timestamp=None,
+            source="import",
+            channel_username="a_channel",
+            source_link=None,
+        ),
+        tokenizer.tokenize("随机文案 B"),
+    )
+
+    assert repo.random_count(channel="@a_channel") == 2
+    assert repo.random_count(channel="@missing") == 0

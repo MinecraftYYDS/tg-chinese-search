@@ -48,7 +48,7 @@ def _build_handler(runtime: RuntimeContext):
             if parsed.path == "/healthz":
                 self._write_json(HTTPStatus.OK, {"code": "ok", "message": "ok", "data": None})
                 return
-            if parsed.path != "/api/search":
+            if parsed.path not in {"/api/search", "/api/random"}:
                 self._write_json(
                     HTTPStatus.NOT_FOUND,
                     {"code": "not_found", "message": "route not found", "data": None},
@@ -72,6 +72,43 @@ def _build_handler(runtime: RuntimeContext):
 
             try:
                 query_dict = parse_qs(parsed.query)
+                channel_filter = query_dict.get("channel", [None])[0]
+                if channel_filter is not None:
+                    channel_filter = channel_filter.strip()
+                    if not channel_filter:
+                        channel_filter = None
+
+                if parsed.path == "/api/random":
+                    limit = _parse_positive_int(
+                        query_dict.get("limit", [None])[0],
+                        default=runtime.default_random_limit,
+                    )
+                    limit = min(limit, runtime.max_random_limit)
+                    total = runtime.search_service.random_count(channel_filter=channel_filter)
+                    rows = runtime.search_service.random(limit=limit, channel_filter=channel_filter)
+                    data = {
+                        "channel": channel_filter,
+                        "limit": limit,
+                        "total": total,
+                        "items": [
+                            {
+                                "id": row.id,
+                                "chat_id": row.chat_id,
+                                "message_id": row.message_id,
+                                "channel_username": row.channel_username,
+                                "source_link": row.source_link,
+                                "text": row.text,
+                                "timestamp": row.timestamp,
+                            }
+                            for row in rows
+                        ],
+                    }
+                    self._write_json(
+                        HTTPStatus.OK,
+                        {"code": "ok", "message": "ok", "data": data},
+                    )
+                    return
+
                 query = (query_dict.get("q", [""])[0] or "").strip()
                 if not query:
                     self._write_json(
@@ -86,12 +123,6 @@ def _build_handler(runtime: RuntimeContext):
                 )
                 limit = min(limit, 200)
                 offset = _parse_non_negative_int(query_dict.get("offset", [None])[0], default=0)
-
-                channel_filter = query_dict.get("channel", [None])[0]
-                if channel_filter is not None:
-                    channel_filter = channel_filter.strip()
-                    if not channel_filter:
-                        channel_filter = None
 
                 total = runtime.search_service.count(query=query, channel_filter=channel_filter)
                 rows = runtime.search_service.search(

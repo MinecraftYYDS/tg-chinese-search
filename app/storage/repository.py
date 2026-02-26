@@ -149,6 +149,46 @@ class MessageRepository:
         row = self.conn.execute(sql, tuple(params)).fetchone()
         return int(row["c"]) if row else 0
 
+    def random_messages(self, limit: int, channel: str | int | None = None) -> list[SearchRow]:
+        chat_id = self.resolve_channel(channel)
+        if channel is not None and chat_id is None:
+            return []
+        sql = """
+            SELECT m.id, m.chat_id, m.message_id, m.channel_username, m.source_link, m.text, m.timestamp
+            FROM channel_messages m
+        """
+        params: list[object] = []
+        if chat_id is not None:
+            sql += " WHERE m.chat_id = ?"
+            params.append(chat_id)
+        sql += " ORDER BY RANDOM() LIMIT ?"
+        params.append(limit)
+        rows = self.conn.execute(sql, tuple(params)).fetchall()
+        return [
+            SearchRow(
+                id=int(row["id"]),
+                chat_id=int(row["chat_id"]),
+                message_id=int(row["message_id"]),
+                channel_username=row["channel_username"],
+                source_link=row["source_link"],
+                text=row["text"],
+                timestamp=int(row["timestamp"]),
+            )
+            for row in rows
+        ]
+
+    def random_count(self, channel: str | int | None = None) -> int:
+        chat_id = self.resolve_channel(channel)
+        if channel is not None and chat_id is None:
+            return 0
+        sql = "SELECT COUNT(1) AS c FROM channel_messages"
+        params: list[object] = []
+        if chat_id is not None:
+            sql += " WHERE chat_id = ?"
+            params.append(chat_id)
+        row = self.conn.execute(sql, tuple(params)).fetchone()
+        return int(row["c"]) if row else 0
+
     def set_config(self, key: str, value: str, is_sensitive: bool) -> None:
         with self.conn:
             self.conn.execute(

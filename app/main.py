@@ -40,7 +40,7 @@ from app.context import RuntimeContext
 from app.http_api import ExternalSearchApiServer
 from app.importer.telegram_json import import_telegram_export
 from app.ingest.telegram_adapter import on_any_update
-from app.interaction.commands import help_command, search_command, start_command
+from app.interaction.commands import help_command, search_command, sj_command, start_command
 from app.interaction.inline_mode import handle_inline_query
 from app.interaction.private_chat import (
     handle_noop_pagination,
@@ -73,6 +73,8 @@ def _seed_dynamic_config(config_store: ConfigStore, settings: Settings) -> None:
         "webhook_listen_host": settings.webhook_listen_host,
         "webhook_listen_port": str(settings.webhook_listen_port),
         "default_search_limit": str(settings.default_search_limit),
+        "default_random_limit": str(settings.default_random_limit),
+        "max_random_limit": str(settings.max_random_limit),
         "private_page_size": str(settings.private_page_size),
         "private_separator": settings.private_separator,
         "polling_idle_restart_seconds": str(settings.polling_idle_restart_seconds),
@@ -109,6 +111,12 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
     settings.telegram_proxy_url = _resolve_runtime_value(config_store, "telegram_proxy_url", settings.telegram_proxy_url or "")
     settings.default_search_limit = int(
         _resolve_runtime_value(config_store, "default_search_limit", str(settings.default_search_limit))
+    )
+    settings.default_random_limit = int(
+        _resolve_runtime_value(config_store, "default_random_limit", str(settings.default_random_limit))
+    )
+    settings.max_random_limit = int(
+        _resolve_runtime_value(config_store, "max_random_limit", str(settings.max_random_limit))
     )
     settings.private_page_size = int(
         _resolve_runtime_value(config_store, "private_page_size", str(settings.private_page_size))
@@ -159,6 +167,8 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
         admin_auth=admin_auth,
         config_store=config_store,
         default_search_limit=settings.default_search_limit,
+        default_random_limit=settings.default_random_limit,
+        max_random_limit=settings.max_random_limit,
         private_page_size=settings.private_page_size,
         private_separator=settings.private_separator,
         proxy_fail_open=settings.proxy_fail_open,
@@ -187,6 +197,7 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("helph", help_command))
     app.add_handler(CommandHandler("search", search_command))
+    app.add_handler(CommandHandler("sj", sj_command))
     app.add_handler(InlineQueryHandler(handle_inline_query))
     app.add_handler(CallbackQueryHandler(handle_noop_pagination, pattern=r"^noop$"))
     app.add_handler(CallbackQueryHandler(handle_private_pagination, pattern=r"^pg:"))
