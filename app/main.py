@@ -20,7 +20,19 @@ from telegram.ext import (
 )
 
 from app.admin.auth import AdminAuthService
-from app.admin.commands import admin_apply, admin_get, admin_list, admin_login, admin_logout, admin_set
+from app.admin.commands import (
+    admin_apply,
+    admin_channel_add,
+    admin_channel_disable,
+    admin_channel_enable,
+    admin_channel_list,
+    admin_channel_remove,
+    admin_get,
+    admin_list,
+    admin_login,
+    admin_logout,
+    admin_set,
+)
 from app.admin.config_store import ConfigStore
 from app.config import Settings, load_settings
 from app.context import RuntimeContext
@@ -145,6 +157,11 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("admin_list", admin_list))
     app.add_handler(CommandHandler("admin_logout", admin_logout))
     app.add_handler(CommandHandler("admin_apply", admin_apply))
+    app.add_handler(CommandHandler("admin_channel_add", admin_channel_add))
+    app.add_handler(CommandHandler("admin_channel_remove", admin_channel_remove))
+    app.add_handler(CommandHandler("admin_channel_disable", admin_channel_disable))
+    app.add_handler(CommandHandler("admin_channel_enable", admin_channel_enable))
+    app.add_handler(CommandHandler("admin_channel_list", admin_channel_list))
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))

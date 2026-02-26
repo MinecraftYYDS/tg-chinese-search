@@ -58,6 +58,15 @@ CREATE TABLE IF NOT EXISTS channel_alias (
     username TEXT UNIQUE
 );
 
+CREATE TABLE IF NOT EXISTS allowed_channels (
+    chat_id INTEGER PRIMARY KEY,
+    channel_name TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    description TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS channel_messages_fts USING fts5(
     tokens,
     content='channel_messages',

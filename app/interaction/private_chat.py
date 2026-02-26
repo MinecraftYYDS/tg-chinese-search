@@ -44,6 +44,16 @@ async def handle_private_search(update: Update, context: ContextTypes.DEFAULT_TY
     if not parsed.query:
         await msg.reply_text("请输入关键词，例如：你好世界 或 @channel 你好")
         return
+    
+    # Check if requested channel is allowed
+    chat_id = runtime.repo.resolve_channel(parsed.channel)
+    if parsed.channel is not None and chat_id is None:
+        await msg.reply_text("频道不存在或未找到。")
+        return
+    if chat_id is not None and not runtime.repo.is_channel_allowed(chat_id):
+        await msg.reply_text("该频道不在搜索白名单中，无法搜索。")
+        return
+    
     page_size = runtime.private_page_size
     results = runtime.search_service.search(parsed.query, limit=page_size, offset=0, channel_filter=parsed.channel)
     if not results:

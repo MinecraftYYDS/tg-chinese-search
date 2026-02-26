@@ -37,6 +37,30 @@ async def handle_inline_query(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not parsed.query:
         await inline_query.answer([], cache_time=1, is_personal=True)
         return
+    
+    # Check if requested channel is allowed
+    chat_id = runtime.repo.resolve_channel(parsed.channel)
+    if parsed.channel is not None and chat_id is None:
+        await inline_query.answer([], cache_time=1, is_personal=True)
+        return
+    if chat_id is not None and not runtime.repo.is_channel_allowed(chat_id):
+        await inline_query.answer(
+            [
+                InlineQueryResultArticle(
+                    id="access_denied",
+                    title="频道访问被禁用",
+                    description=f"该频道不在搜索白名单中",
+                    input_message_content=InputTextMessageContent(
+                        message_text="该频道不在搜索白名单中，无法搜索。",
+                        disable_web_page_preview=True,
+                    ),
+                )
+            ],
+            cache_time=1,
+            is_personal=True,
+        )
+        return
+    
     rows = runtime.search_service.search(
         query=parsed.query,
         limit=min(runtime.default_search_limit, 50),

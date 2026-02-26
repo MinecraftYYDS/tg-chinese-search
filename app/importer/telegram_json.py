@@ -51,19 +51,24 @@ def import_telegram_export(
     repo: MessageRepository,
     tokenizer: Tokenizer,
     dry_run: bool = False,
+    channel_alias: str | None = None,
 ) -> ImportStats:
     data = json.loads(Path(json_path).read_text(encoding="utf-8"))
     chat_id = _to_bot_api_chat_id(int(data["id"]))
     channel_name = data.get("name", "")
     stats = ImportStats(total=len(data.get("messages", [])))
 
+    # Use provided alias or fall back to channel name from JSON
+    username = channel_alias or channel_name
+
     for item in data.get("messages", []):
         normalized = _normalize_import_message(item, chat_id)
         if normalized is None:
             stats.skipped += 1
             continue
-        if channel_name and not normalized.channel_username:
-            normalized.channel_username = None
+        # Set channel username if available
+        if username and not normalized.channel_username:
+            normalized.channel_username = username.lstrip("@") if not username.startswith("@") else username
         tokens = tokenizer.tokenize(normalized.text)
         if not tokens:
             stats.skipped += 1

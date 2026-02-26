@@ -27,6 +27,16 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not parsed.query:
         await message.reply_text("Usage: /search 关键词 或 /search @channel 关键词")
         return
+    
+    # Check if requested channel is allowed
+    chat_id = runtime.repo.resolve_channel(parsed.channel)
+    if parsed.channel is not None and chat_id is None:
+        await message.reply_text("频道不存在或未找到。")
+        return
+    if chat_id is not None and not runtime.repo.is_channel_allowed(chat_id):
+        await message.reply_text("该频道不在搜索白名单中，无法搜索。")
+        return
+    
     results = runtime.search_service.search(parsed.query, limit=runtime.private_page_size, channel_filter=parsed.channel)
     if not results:
         await message.reply_text("未找到匹配结果。")

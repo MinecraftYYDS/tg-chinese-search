@@ -186,3 +186,81 @@ class MessageRepository:
     def get_all_messages_count(self) -> int:
         row = self.conn.execute("SELECT COUNT(1) AS c FROM channel_messages").fetchone()
         return int(row["c"])
+    def add_allowed_channel(self, chat_id: int, channel_name: str, description: str = "") -> None:
+        """Add a channel to the whitelist"""
+        now = int(time.time())
+        with self.conn:
+            self.conn.execute(
+                """
+                INSERT INTO allowed_channels(chat_id, channel_name, enabled, description, created_at, updated_at)
+                VALUES (?, ?, 1, ?, ?, ?)
+                ON CONFLICT(chat_id) DO UPDATE SET
+                    channel_name=excluded.channel_name,
+                    description=excluded.description,
+                    enabled=1,
+                    updated_at=excluded.updated_at
+                """,
+                (chat_id, channel_name, description, now, now),
+            )
+
+    def remove_allowed_channel(self, chat_id: int) -> bool:
+        """Remove a channel from the whitelist"""
+        with self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM allowed_channels WHERE chat_id=?",
+                (chat_id,),
+            )
+            return cursor.rowcount > 0
+
+    def disable_allowed_channel(self, chat_id: int) -> bool:
+        """Disable a channel in the whitelist"""
+        now = int(time.time())
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE allowed_channels SET enabled=0, updated_at=? WHERE chat_id=?",
+                (now, chat_id),
+            )
+            return cursor.rowcount > 0
+
+    def enable_allowed_channel(self, chat_id: int) -> bool:
+        """Enable a channel in the whitelist"""
+        now = int(time.time())
+        with self.conn:
+            cursor = self.conn.execute(
+                "UPDATE allowed_channels SET enabled=1, updated_at=? WHERE chat_id=?",
+                (now, chat_id),
+            )
+            return cursor.rowcount > 0
+
+    def is_channel_allowed(self, chat_id: int) -> bool:
+        """Check if a channel is in the whitelist and enabled"""
+        # If no whitelist exists (empty allowed_channels table), allow all channels by default
+        has_whitelist = self.conn.execute(
+            "SELECT 1 FROM allowed_channels LIMIT 1"
+        ).fetchone() is not None
+
+        if not has_whitelist:
+            return True
+
+        row = self.conn.execute(
+            "SELECT enabled FROM allowed_channels WHERE chat_id=?",
+            (chat_id,),
+        ).fetchone()
+        return bool(row and row["enabled"])
+
+    def get_allowed_channels(self) -> list[dict]:
+        """Get all allowed channels"""
+        rows = self.conn.execute(
+            "SELECT chat_id, channel_name, enabled, description, created_at, updated_at FROM allowed_channels ORDER BY channel_name ASC"
+        ).fetchall()
+        return [
+            {
+                "chat_id": int(row["chat_id"]),
+                "channel_name": row["channel_name"],
+                "enabled": bool(row["enabled"]),
+                "description": row["description"],
+                "created_at": int(row["created_at"]),
+                "updated_at": int(row["updated_at"]),
+            }
+            for row in rows
+        ]

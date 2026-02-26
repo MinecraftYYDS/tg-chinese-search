@@ -136,3 +136,149 @@ async def admin_apply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     runtime.repo.insert_admin_audit(admin_id, action="admin_apply", detail="acknowledged")
     await update.effective_message.reply_text("Apply done. Proxy/settings requiring restart will take effect on restart.")
 
+
+async def admin_channel_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Add a channel to whitelist: /admin_channel_add <chat_id> <channel_name> [description]"""
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    text = (update.effective_message.text or "").strip()
+    parts = text.split(maxsplit=3)
+    if len(parts) < 3:
+        await update.effective_message.reply_text("Usage: /admin_channel_add <chat_id> <channel_name> [description]")
+        return
+    try:
+        chat_id = int(parts[1])
+    except ValueError:
+        await update.effective_message.reply_text("Invalid chat_id. Must be a number.")
+        return
+    channel_name = parts[2]
+    description = parts[3] if len(parts) > 3 else ""
+    
+    runtime.repo.add_allowed_channel(chat_id, channel_name, description)
+    runtime.repo.insert_admin_audit(
+        admin_id,
+        action="admin_channel_add",
+        key=f"chat_id:{chat_id}",
+        masked_value=f"{channel_name}",
+        detail=description,
+    )
+    await update.effective_message.reply_text(
+        f"Channel added to whitelist:\nID: {chat_id}\nName: {channel_name}"
+    )
+
+
+async def admin_channel_remove(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Remove a channel from whitelist: /admin_channel_remove <chat_id>"""
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    text = (update.effective_message.text or "").strip()
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        await update.effective_message.reply_text("Usage: /admin_channel_remove <chat_id>")
+        return
+    try:
+        chat_id = int(parts[1])
+    except ValueError:
+        await update.effective_message.reply_text("Invalid chat_id. Must be a number.")
+        return
+    
+    if runtime.repo.remove_allowed_channel(chat_id):
+        runtime.repo.insert_admin_audit(
+            admin_id,
+            action="admin_channel_remove",
+            key=f"chat_id:{chat_id}",
+            detail="removed",
+        )
+        await update.effective_message.reply_text(f"Channel {chat_id} removed from whitelist.")
+    else:
+        await update.effective_message.reply_text(f"Channel {chat_id} not found in whitelist.")
+
+
+async def admin_channel_disable(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Disable a channel in whitelist: /admin_channel_disable <chat_id>"""
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    text = (update.effective_message.text or "").strip()
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        await update.effective_message.reply_text("Usage: /admin_channel_disable <chat_id>")
+        return
+    try:
+        chat_id = int(parts[1])
+    except ValueError:
+        await update.effective_message.reply_text("Invalid chat_id. Must be a number.")
+        return
+    
+    if runtime.repo.disable_allowed_channel(chat_id):
+        runtime.repo.insert_admin_audit(
+            admin_id,
+            action="admin_channel_disable",
+            key=f"chat_id:{chat_id}",
+            detail="disabled",
+        )
+        await update.effective_message.reply_text(f"Channel {chat_id} disabled.")
+    else:
+        await update.effective_message.reply_text(f"Channel {chat_id} not found in whitelist.")
+
+
+async def admin_channel_enable(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Enable a channel in whitelist: /admin_channel_enable <chat_id>"""
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    text = (update.effective_message.text or "").strip()
+    parts = text.split(maxsplit=1)
+    if len(parts) < 2:
+        await update.effective_message.reply_text("Usage: /admin_channel_enable <chat_id>")
+        return
+    try:
+        chat_id = int(parts[1])
+    except ValueError:
+        await update.effective_message.reply_text("Invalid chat_id. Must be a number.")
+        return
+    
+    if runtime.repo.enable_allowed_channel(chat_id):
+        runtime.repo.insert_admin_audit(
+            admin_id,
+            action="admin_channel_enable",
+            key=f"chat_id:{chat_id}",
+            detail="enabled",
+        )
+        await update.effective_message.reply_text(f"Channel {chat_id} enabled.")
+    else:
+        await update.effective_message.reply_text(f"Channel {chat_id} not found in whitelist.")
+
+
+async def admin_channel_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """List all channels in whitelist: /admin_channel_list"""
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    
+    channels = runtime.repo.get_allowed_channels()
+    runtime.repo.insert_admin_audit(admin_id, action="admin_channel_list")
+    
+    if not channels:
+        await update.effective_message.reply_text("Whitelist is empty. All channels are allowed.")
+        return
+    
+    lines = ["📋 Allowed Channels:"]
+    for ch in channels:
+        status = "✓ Enabled" if ch["enabled"] else "✗ Disabled"
+        desc = f" ({ch['description']})" if ch["description"] else ""
+        lines.append(f"• {ch['chat_id']} - {ch['channel_name']} [{status}]{desc}")
+    
+    await update.effective_message.reply_text("\n".join(lines))
