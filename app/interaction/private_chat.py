@@ -62,10 +62,17 @@ async def handle_private_search(update: Update, context: ContextTypes.DEFAULT_TY
     query_id = str(int(time.time() * 1000))
     user_data = context.user_data.setdefault("search_queries", {})
     total_found = runtime.search_service.count(parsed.query, channel_filter=parsed.channel)
-    user_data[query_id] = {"query": parsed.query, "channel": parsed.channel, "total_found": total_found}
+    user = update.effective_user
+    is_admin = bool(user and runtime.admin_auth.is_authenticated(user.id))
+    user_data[query_id] = {
+        "query": parsed.query,
+        "channel": parsed.channel,
+        "total_found": total_found,
+        "is_admin": is_admin,
+    }
 
     keywords = extract_keywords(parsed.query)
-    chunks = [render_private_result(row, keywords) for row in results]
+    chunks = [render_private_result(row, keywords, include_message_ids=is_admin) for row in results]
     text = f"\n{runtime.private_separator}\n".join(chunks)
     keyboard = _build_keyboard(query_id, offset=0, page_size=page_size, total_found=total_found)
     await msg.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True, reply_markup=keyboard)
@@ -86,13 +93,16 @@ async def handle_private_pagination(update: Update, context: ContextTypes.DEFAUL
     q = query_state["query"]
     channel = query_state["channel"]
     total_found = int(query_state.get("total_found", 0))
+    is_admin = bool(query_state.get("is_admin", False))
     page_size = runtime.private_page_size
     results = runtime.search_service.search(q, limit=page_size, offset=offset, channel_filter=channel)
     if not results:
         await query.edit_message_text("没有更多结果。")
         return
     keywords = extract_keywords(q)
-    text = f"\n{runtime.private_separator}\n".join(render_private_result(row, keywords) for row in results)
+    text = f"\n{runtime.private_separator}\n".join(
+        render_private_result(row, keywords, include_message_ids=is_admin) for row in results
+    )
     keyboard = _build_keyboard(query_id, offset=offset, page_size=page_size, total_found=total_found)
     await query.edit_message_text(
         text=text,

@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app.context import RuntimeContext
-from app.ingest.handler import handle_channel_message
+from app.ingest.handler import handle_channel_message, handle_edited_channel_message
 
 
 logger = logging.getLogger(__name__)
@@ -62,7 +62,7 @@ async def on_edited_channel_post(update: Update, context: ContextTypes.DEFAULT_T
         bool(post.text),
         bool(post.caption),
     )
-    result = handle_channel_message(post, runtime.repo, runtime.tokenizer)
+    result = handle_edited_channel_message(post, runtime.repo, runtime.tokenizer)
     if result.ok:
         logger.info(
             "indexed edited_channel_post chat_id=%s message_id=%s text_len=%s",

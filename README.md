@@ -129,6 +129,11 @@ python -m app.main import --json "C:\path\to\result.json" --dry-run
 - `/admin_channel_enable <chat_id>` - 启用白名单中的频道
 - `/admin_channel_list` - 列出所有白名单频道
 
+### 手动清理索引
+
+- `/admin_delete_msg <chat_id> <message_id>` - 手动删除单条消息及其搜索索引
+- 管理员登录后，在私聊搜索结果中会显示 `chat_id:message_id`，可直接复制用于删除
+
 说明：
 
 - 只有 `ADMIN_IDS` 白名单用户可登录。

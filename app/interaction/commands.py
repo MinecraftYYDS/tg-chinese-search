@@ -42,7 +42,11 @@ async def search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await message.reply_text("未找到匹配结果。")
         return
     keywords = extract_keywords(parsed.query)
-    text = f"\n{runtime.private_separator}\n".join(render_private_result(row, keywords) for row in results)
+    user = update.effective_user
+    is_admin = bool(user and runtime.admin_auth.is_authenticated(user.id))
+    text = f"\n{runtime.private_separator}\n".join(
+        render_private_result(row, keywords, include_message_ids=is_admin) for row in results
+    )
     await message.reply_text(text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
 
 
@@ -68,5 +72,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "2. 指定频道：@channel 关键词\n"
         "3. 指令搜索：/search 关键词\n"
         "4. 内联搜索：@botname 关键词 或 @botname #频道 关键词\n"
-        "5. 管理命令：/admin_login /admin_set /admin_get /admin_list /admin_logout /admin_apply"
+        "5. 管理命令：/admin_login /admin_set /admin_get /admin_list /admin_logout /admin_apply\n"
+        "6. 频道管理：/admin_channel_add /admin_channel_remove /admin_channel_disable /admin_channel_enable /admin_channel_list\n"
+        "7. 手动清理：/admin_delete_msg <chat_id> <message_id>"
     )

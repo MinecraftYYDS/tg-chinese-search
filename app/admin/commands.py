@@ -282,3 +282,39 @@ async def admin_channel_list(update: Update, context: ContextTypes.DEFAULT_TYPE)
         lines.append(f"• {ch['chat_id']} - {ch['channel_name']} [{status}]{desc}")
     
     await update.effective_message.reply_text("\n".join(lines))
+
+
+async def admin_delete_msg(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    runtime = _ctx(context)
+    admin_id = _check_admin(update, runtime)
+    if admin_id is None:
+        await update.effective_message.reply_text("Admin authentication required.")
+        return
+    text = (update.effective_message.text or "").strip()
+    parts = text.split(maxsplit=2)
+    if len(parts) < 3:
+        await update.effective_message.reply_text("Usage: /admin_delete_msg <chat_id> <message_id>")
+        return
+    try:
+        chat_id = int(parts[1])
+        message_id = int(parts[2])
+    except ValueError:
+        await update.effective_message.reply_text("Invalid chat_id or message_id. Must be numbers.")
+        return
+
+    deleted = runtime.repo.delete_message(chat_id=chat_id, message_id=message_id)
+    runtime.repo.insert_admin_audit(
+        admin_id,
+        action="admin_delete_msg",
+        key=f"chat_id:{chat_id}",
+        masked_value=f"message_id:{message_id}",
+        detail="deleted" if deleted else "not_found",
+    )
+    if deleted:
+        await update.effective_message.reply_text(
+            f"Deleted message index: chat_id={chat_id}, message_id={message_id}"
+        )
+        return
+    await update.effective_message.reply_text(
+        f"Message not found: chat_id={chat_id}, message_id={message_id}"
+    )

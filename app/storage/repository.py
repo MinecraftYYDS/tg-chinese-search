@@ -70,6 +70,14 @@ class MessageRepository:
             ).fetchone()
             return int(row["id"])
 
+    def delete_message(self, chat_id: int, message_id: int) -> bool:
+        with self.conn:
+            cursor = self.conn.execute(
+                "DELETE FROM channel_messages WHERE chat_id=? AND message_id=?",
+                (chat_id, message_id),
+            )
+            return cursor.rowcount > 0
+
     def resolve_channel(self, channel: str | int | None) -> int | None:
         if channel is None:
             return None

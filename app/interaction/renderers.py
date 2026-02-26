@@ -57,7 +57,7 @@ def _highlight_md(text: str, keywords: list[str]) -> str:
     return value
 
 
-def render_private_result(row: SearchRow, keywords: list[str]) -> str:
+def render_private_result(row: SearchRow, keywords: list[str], include_message_ids: bool = False) -> str:
     channel_label = f"@{row.channel_username}" if row.channel_username else str(row.chat_id)
     first_keyword = keywords[0] if keywords else None
     preview = _snippet_around_keyword(row.text, first_keyword, before=12, after=25)
@@ -69,11 +69,17 @@ def render_private_result(row: SearchRow, keywords: list[str]) -> str:
         chat_id=row.chat_id,
     )
     link_text = f'<a href="{html.escape(link)}">跳转到原文</a>' if link else "不可跳转（链接信息不足）"
+    id_line = (
+        f"\n🆔 <b>ID：</b><code>{row.chat_id}:{row.message_id}</code>"
+        if include_message_ids
+        else ""
+    )
     return (
         f"📌 <b>频道：</b>{html.escape(channel_label)}\n"
         f"🕒 <b>时间：</b>{_format_time(row.timestamp)}\n"
         f"📝 <b>内容：</b>\n{content}\n"
         f"🔗 {link_text}"
+        f"{id_line}"
     )
 
 

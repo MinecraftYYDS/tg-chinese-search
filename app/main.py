@@ -27,6 +27,7 @@ from app.admin.commands import (
     admin_channel_enable,
     admin_channel_list,
     admin_channel_remove,
+    admin_delete_msg,
     admin_get,
     admin_list,
     admin_login,
@@ -180,6 +181,7 @@ def _register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("admin_channel_disable", admin_channel_disable))
     app.add_handler(CommandHandler("admin_channel_enable", admin_channel_enable))
     app.add_handler(CommandHandler("admin_channel_list", admin_channel_list))
+    app.add_handler(CommandHandler("admin_delete_msg", admin_delete_msg))
 
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
