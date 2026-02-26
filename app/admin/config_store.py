@@ -14,6 +14,7 @@ SENSITIVE_KEYS = {
     "webhook_url",
     "webhook_listen_host",
     "webhook_listen_port",
+    "external_api_token",
 }
 
 

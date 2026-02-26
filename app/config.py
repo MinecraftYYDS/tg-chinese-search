@@ -47,6 +47,10 @@ class Settings:
     telegram_proxy_url: str | None
     proxy_fail_open: bool
     polling_idle_restart_seconds: int
+    external_api_enabled: bool
+    external_api_host: str
+    external_api_port: int
+    external_api_token: str
 
     @property
     def encryption_key_bytes(self) -> bytes:
@@ -93,4 +97,8 @@ def load_settings() -> Settings:
         telegram_proxy_url=os.getenv("TELEGRAM_PROXY_URL"),
         proxy_fail_open=_parse_bool(os.getenv("PROXY_FAIL_OPEN"), True),
         polling_idle_restart_seconds=int(os.getenv("POLLING_IDLE_RESTART_SECONDS", "3600")),
+        external_api_enabled=_parse_bool(os.getenv("EXTERNAL_API_ENABLED"), False),
+        external_api_host=os.getenv("EXTERNAL_API_HOST", "127.0.0.1").strip(),
+        external_api_port=int(os.getenv("EXTERNAL_API_PORT", "8787")),
+        external_api_token=os.getenv("EXTERNAL_API_TOKEN", "").strip(),
     )

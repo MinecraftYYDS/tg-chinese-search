@@ -36,6 +36,7 @@ from app.admin.commands import (
 from app.admin.config_store import ConfigStore
 from app.config import Settings, load_settings
 from app.context import RuntimeContext
+from app.http_api import ExternalSearchApiServer
 from app.importer.telegram_json import import_telegram_export
 from app.ingest.telegram_adapter import on_any_update
 from app.interaction.commands import help_command, search_command, start_command
@@ -74,6 +75,10 @@ def _seed_dynamic_config(config_store: ConfigStore, settings: Settings) -> None:
         "private_page_size": str(settings.private_page_size),
         "private_separator": settings.private_separator,
         "polling_idle_restart_seconds": str(settings.polling_idle_restart_seconds),
+        "external_api_enabled": str(settings.external_api_enabled).lower(),
+        "external_api_host": settings.external_api_host,
+        "external_api_port": str(settings.external_api_port),
+        "external_api_token": settings.external_api_token,
     }
     for key, value in defaults.items():
         if config_store.get(key) is None and value != "":
@@ -114,6 +119,19 @@ def create_runtime(settings: Settings) -> tuple[RuntimeContext, Settings]:
         _resolve_runtime_value(
             config_store, "polling_idle_restart_seconds", str(settings.polling_idle_restart_seconds)
         )
+    )
+    settings.external_api_enabled = (
+        _resolve_runtime_value(config_store, "external_api_enabled", str(settings.external_api_enabled)).lower()
+        == "true"
+    )
+    settings.external_api_host = _resolve_runtime_value(
+        config_store, "external_api_host", settings.external_api_host
+    )
+    settings.external_api_port = int(
+        _resolve_runtime_value(config_store, "external_api_port", str(settings.external_api_port))
+    )
+    settings.external_api_token = _resolve_runtime_value(
+        config_store, "external_api_token", settings.external_api_token
     )
     settings.webhook_url = _resolve_runtime_value(config_store, "webhook_url", settings.webhook_url)
     settings.webhook_listen_host = _resolve_runtime_value(
@@ -359,8 +377,20 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
         "If no channel updates arrive: ensure bot is admin in the channel and no conflicting webhook/polling setup."
     )
     heartbeat_stop = _start_heartbeat(runtime)
+    api_server = ExternalSearchApiServer(
+        runtime=runtime,
+        host=settings.external_api_host,
+        port=settings.external_api_port,
+    )
     retry_seconds = 5
     try:
+        api_server.start()
+        logger.info(
+            "External search API listening on %s:%s (switch=%s)",
+            settings.external_api_host,
+            api_server.bound_port,
+            settings.external_api_enabled,
+        )
         while True:
             app = _build_application(settings, runtime)
             try:
@@ -397,6 +427,7 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
                 logger.exception("Bot crashed due to network/runtime error. Retrying in %s seconds.", retry_seconds)
                 time.sleep(retry_seconds)
     finally:
+        api_server.stop()
         heartbeat_stop.set()
 
 
