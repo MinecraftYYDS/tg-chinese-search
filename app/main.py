@@ -433,12 +433,19 @@ def run_bot(settings: Settings, runtime: RuntimeContext) -> None:
         heartbeat_stop.set()
 
 
-def run_import(settings: Settings, runtime: RuntimeContext, json_path: str, dry_run: bool) -> None:
+def run_import(
+    settings: Settings,
+    runtime: RuntimeContext,
+    json_path: str,
+    dry_run: bool,
+    channel_alias: str | None = None,
+) -> None:
     stats = import_telegram_export(
         json_path=json_path,
         repo=runtime.repo,
         tokenizer=runtime.tokenizer,
         dry_run=dry_run,
+        channel_alias=channel_alias,
     )
     logger.info(
         "import done total=%s imported=%s skipped=%s dry_run=%s",
@@ -457,6 +464,7 @@ def parse_args() -> argparse.Namespace:
     import_parser = sub.add_parser("import", help="Import telegram desktop export JSON")
     import_parser.add_argument("--json", required=True, help="Path to result.json")
     import_parser.add_argument("--dry-run", action="store_true")
+    import_parser.add_argument("--channel-alias", help="Channel alias, e.g. @mychannel")
     return parser.parse_args()
 
 
@@ -465,7 +473,13 @@ def main() -> None:
     runtime, settings = create_runtime(settings)
     args = parse_args()
     if args.command == "import":
-        run_import(settings, runtime, json_path=args.json, dry_run=args.dry_run)
+        run_import(
+            settings,
+            runtime,
+            json_path=args.json,
+            dry_run=args.dry_run,
+            channel_alias=args.channel_alias,
+        )
         return
     run_bot(settings, runtime)
 
