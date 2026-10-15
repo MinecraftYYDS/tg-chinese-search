@@ -1,13 +1,28 @@
 services:
   tg-chinese-search:
     build: .
+    image: tg-chinese-search:local
     container_name: tg-chinese-search
-    env_file:
-      - .env
+    environment:
+      TG_PUBLIC_ORIGIN: ${TG_PUBLIC_ORIGIN:-https://keaixm.awacat.cc}
+      # Only safe with the loopback-only published port and trusted Nginx below.
+      TG_FORWARDED_ALLOW_IPS: '*'
     volumes:
       - ./data:/app/data
-      - ./certs:/app/certs
     ports:
-      - "8443:8443"
+      - '127.0.0.1:8787:8787'
     restart: unless-stopped
-
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 768m
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'

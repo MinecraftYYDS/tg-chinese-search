@@ -1,5 +1,16 @@
 # tg-chinese-search
 
+## V2：WebUI + 自动获取指定频道历史
+
+新增管理员 WebUI、Telegram 用户账号扫码/手机号登录、指定频道历史回填、实时同步和断点补漏。
+API ID / Hash、采集账号、频道、API Token 均可在 WebUI 配置，保留给 `bot` 的搜索/随机接口。
+新频道默认不对外提供内容，支持独立采集/发布开关和持久化内容屏蔽。
+
+**新部署使用 `python -m app.main serve` 或 `docker compose up -d --build`。**
+完整使用、部署、旧数据迁移和安全说明见 **[V2 部署文档](docs/v2-deployment.md)**。
+
+以下为保留的 V1 机器人与手动导入说明；V2 的部署、权限与鉴权规则以新文档为准。
+
 Telegram 频道中文全文搜索机器人（首阶段仅支持频道，不包含群聊）。
 
 ## 功能清单

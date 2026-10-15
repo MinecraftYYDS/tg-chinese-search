@@ -3,3 +3,10 @@ jieba==0.42.1
 cryptography==44.0.0
 bcrypt==4.2.1
 pytest==8.3.4
+fastapi==0.135.1
+uvicorn==0.41.0
+Telethon==1.42.0
+qrcode==8.2
+httpx==0.28.1
+setuptools<81
+PySocks==1.7.1

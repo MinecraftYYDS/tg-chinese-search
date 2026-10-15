@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import threading
 import time
 
@@ -472,6 +473,9 @@ def parse_args() -> argparse.Namespace:
     sub = parser.add_subparsers(dest="command")
     run_parser = sub.add_parser("run", help="Run telegram bot")
     run_parser.set_defaults(command="run")
+    serve_parser = sub.add_parser("serve", help="Run WebUI, collector and compatible API")
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8787)
     import_parser = sub.add_parser("import", help="Import telegram desktop export JSON")
     import_parser.add_argument("--json", required=True, help="Path to result.json")
     import_parser.add_argument("--dry-run", action="store_true")
@@ -480,9 +484,14 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    args = parse_args()
+    if args.command == "serve":
+        import uvicorn
+        uvicorn.run("app.web.server:create_app", factory=True, host=args.host, port=args.port,
+                    proxy_headers=True, forwarded_allow_ips=os.getenv("TG_FORWARDED_ALLOW_IPS", "127.0.0.1"), access_log=False)
+        return
     settings = load_settings()
     runtime, settings = create_runtime(settings)
-    args = parse_args()
     if args.command == "import":
         run_import(
             settings,

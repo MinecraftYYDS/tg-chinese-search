@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 
 from app.normalize.channel_message import NormalizedMessage
@@ -19,13 +20,36 @@ class SearchRow:
 
 
 class MessageRepository:
-    def __init__(self, conn: sqlite3.Connection) -> None:
+    def __init__(self, conn: sqlite3.Connection, *, private: bool = False, hidden: bool = False) -> None:
         self.conn = conn
+        self.private = private
+        self.hidden = hidden
 
-    def upsert_message(self, msg: NormalizedMessage, tokens: list[str]) -> int:
+    def _visibility(self, alias: str = "m") -> str:
+        controls = f"length(trim({alias}.text))>0 AND NOT EXISTS (SELECT 1 FROM message_controls x WHERE x.chat_id={alias}.chat_id AND x.message_id={alias}.message_id AND (x.deleted=1"
+        if not self.hidden:
+            controls += " OR x.hidden=1"
+        controls += "))"
+        since, until = getattr(self, "time_range", (0, 0))
+        if since:
+            controls += f" AND {alias}.timestamp>={int(since)}"
+        if until:
+            controls += f" AND {alias}.timestamp<={int(until)}"
+        if self.private:
+            return controls
+        return controls + f""" AND (
+            (EXISTS (SELECT 1 FROM app_config WHERE key='managed_channels_only' AND value='true')
+             AND EXISTS (SELECT 1 FROM managed_channels c WHERE c.chat_id={alias}.chat_id AND c.published=1))
+            OR
+            (NOT EXISTS (SELECT 1 FROM app_config WHERE key='managed_channels_only' AND value='true')
+             AND (NOT EXISTS (SELECT 1 FROM allowed_channels)
+                  OR EXISTS (SELECT 1 FROM allowed_channels a WHERE a.chat_id={alias}.chat_id AND a.enabled=1)))
+        )"""
+
+    def upsert_message(self, msg: NormalizedMessage, tokens: list[str], *, commit: bool = True) -> int:
         now = int(time.time())
         token_text = " ".join(tokens)
-        with self.conn:
+        with self.conn if commit else nullcontext():
             self.conn.execute(
                 """
                 INSERT INTO channel_messages (
@@ -41,6 +65,8 @@ class MessageRepository:
                     edited_timestamp=excluded.edited_timestamp,
                     source=excluded.source,
                     updated_at=excluded.updated_at
+                WHERE COALESCE(excluded.edited_timestamp, excluded.timestamp) >=
+                      COALESCE(channel_messages.edited_timestamp, channel_messages.timestamp)
                 """,
                 (
                     msg.chat_id,
@@ -57,6 +83,8 @@ class MessageRepository:
                 ),
             )
             if msg.channel_username:
+                self.conn.execute("DELETE FROM channel_alias WHERE username=? AND chat_id!=?",
+                                  (msg.channel_username.lstrip("@"), msg.chat_id))
                 self.conn.execute(
                     """
                     INSERT INTO channel_alias(chat_id, username) VALUES (?, ?)
@@ -90,6 +118,9 @@ class MessageRepository:
             stripped = stripped[1:]
         if stripped.lstrip("-").isdigit():
             return int(stripped)
+        if self.conn.execute("SELECT 1 FROM app_config WHERE key='managed_channels_only' AND value='true'").fetchone():
+            row = self.conn.execute("SELECT chat_id FROM managed_channels WHERE lower(username)=lower(?)", (stripped,)).fetchone()
+            return int(row["chat_id"]) if row else None
         row = self.conn.execute(
             "SELECT chat_id FROM channel_alias WHERE username=?",
             (stripped,),
@@ -116,7 +147,8 @@ class MessageRepository:
         if chat_id is not None:
             sql += " AND m.chat_id = ?"
             params.append(chat_id)
-        sql += " ORDER BY m.timestamp DESC LIMIT ? OFFSET ?"
+        sql += " AND " + self._visibility()
+        sql += " ORDER BY m.timestamp DESC, m.id DESC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         rows = self.conn.execute(sql, tuple(params)).fetchall()
         return [
@@ -146,6 +178,7 @@ class MessageRepository:
         if chat_id is not None:
             sql += " AND m.chat_id = ?"
             params.append(chat_id)
+        sql += " AND " + self._visibility()
         row = self.conn.execute(sql, tuple(params)).fetchone()
         return int(row["c"]) if row else 0
 
@@ -158,8 +191,9 @@ class MessageRepository:
             FROM channel_messages m
         """
         params: list[object] = []
+        sql += " WHERE " + self._visibility()
         if chat_id is not None:
-            sql += " WHERE m.chat_id = ?"
+            sql += " AND m.chat_id = ?"
             params.append(chat_id)
         sql += " ORDER BY RANDOM() LIMIT ?"
         params.append(limit)
@@ -181,10 +215,10 @@ class MessageRepository:
         chat_id = self.resolve_channel(channel)
         if channel is not None and chat_id is None:
             return 0
-        sql = "SELECT COUNT(1) AS c FROM channel_messages"
+        sql = "SELECT COUNT(1) AS c FROM channel_messages m WHERE " + self._visibility()
         params: list[object] = []
         if chat_id is not None:
-            sql += " WHERE chat_id = ?"
+            sql += " AND m.chat_id = ?"
             params.append(chat_id)
         row = self.conn.execute(sql, tuple(params)).fetchone()
         return int(row["c"]) if row else 0
@@ -282,6 +316,11 @@ class MessageRepository:
 
     def is_channel_allowed(self, chat_id: int) -> bool:
         """Check if a channel is in the whitelist and enabled"""
+        if self.private:
+            return True
+        managed = self.conn.execute("SELECT 1 FROM app_config WHERE key='managed_channels_only' AND value='true'").fetchone()
+        if managed:
+            return self.conn.execute("SELECT 1 FROM managed_channels WHERE chat_id=? AND published=1", (chat_id,)).fetchone() is not None
         # If no whitelist exists (empty allowed_channels table), allow all channels by default
         has_whitelist = self.conn.execute(
             "SELECT 1 FROM allowed_channels LIMIT 1"

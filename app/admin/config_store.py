@@ -8,6 +8,8 @@ from app.storage.repository import MessageRepository
 
 
 SENSITIVE_KEYS = {
+    "telegram_api_hash",
+    "telegram_session",
     "bot_token",
     "telegram_proxy_url",
     "sqlite_path",

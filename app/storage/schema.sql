@@ -89,3 +89,54 @@ CREATE TRIGGER IF NOT EXISTS channel_messages_au AFTER UPDATE ON channel_message
     INSERT INTO channel_messages_fts(rowid, tokens)
     VALUES (new.id, new.tokens);
 END;
+
+CREATE TABLE IF NOT EXISTS managed_channels (
+    chat_id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    username TEXT,
+    access_hash TEXT,
+    collecting INTEGER NOT NULL DEFAULT 1,
+    published INTEGER NOT NULL DEFAULT 0,
+    history_before INTEGER,
+    history_done INTEGER NOT NULL DEFAULT 0,
+    latest_id INTEGER NOT NULL DEFAULT 0,
+    processed INTEGER NOT NULL DEFAULT 0,
+    start_time INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT NOT NULL DEFAULT '',
+    retry_at INTEGER NOT NULL DEFAULT 0,
+    last_sync INTEGER,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS message_controls (
+    chat_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    hidden INTEGER NOT NULL DEFAULT 0,
+    deleted INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (chat_id, message_id)
+);
+
+CREATE TABLE IF NOT EXISTS web_admin (
+    id INTEGER PRIMARY KEY CHECK (id=1),
+    username TEXT NOT NULL,
+    password_hash TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS web_sessions (
+    token_hash TEXT PRIMARY KEY,
+    csrf TEXT NOT NULL,
+    expires_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS web_login_limits (
+    scope TEXT PRIMARY KEY,
+    failures INTEGER NOT NULL DEFAULT 0,
+    locked_until INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version INTEGER PRIMARY KEY,
+    applied_at INTEGER NOT NULL
+);
